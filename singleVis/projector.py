@@ -53,8 +53,8 @@ class Projector(ProjectorAbstractClass):
             if (iteration >= s and iteration < e) or (iteration == init_e and e == init_e):
                 idx = i
                 break
-        # TODO vis model name as a hyperparameter
-        file_path = os.path.join(self.content_path, "Model", "tnn_hybrid_{}.pth".format(idx))
+        # file_path = os.path.join(self.content_path, "Model", "tnn_hybrid_{}.pth".format(idx))
+        file_path = os.path.join(self.content_path, "Model", "vis.pth")
         save_model = torch.load(file_path, map_location="cpu")
         self.vis_model.load_state_dict(save_model["state_dict"])
         self.vis_model.to(self.DEVICE)

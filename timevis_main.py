@@ -2,7 +2,6 @@ import torch
 import sys
 import os
 import time
-import json
 import numpy as np
 import argparse
 
@@ -15,7 +14,7 @@ from singleVis.SingleVisualizationModel import VisModel
 from singleVis.losses import UmapLoss, ReconstructionLoss, SingleVisLoss
 from singleVis.edge_dataset import DataHandler
 from singleVis.trainer import SingleVisTrainer
-from singleVis.data import TimeVisDataProvider
+from singleVis.data import NormalDataProvider
 from singleVis.spatial_edge_constructor import kcSpatialEdgeConstructor
 from singleVis.temporal_edge_constructor import GlobalTemporalEdgeConstructor
 from singleVis.projector import TimeVisProjector
@@ -33,13 +32,11 @@ args = parser.parse_args()
 
 CONTENT_PATH = args.content_path
 sys.path.append(CONTENT_PATH)
-with open(os.path.join(CONTENT_PATH, "config.json"), "r") as f:
-    config = json.load(f)
-config = config[VIS_METHOD]
+from config import config
 
 # record output information
-# now = time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(time.time())) 
-# sys.stdout = open(os.path.join(CONTENT_PATH, now+".txt"), "w")
+now = time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(time.time())) 
+sys.stdout = open(os.path.join(CONTENT_PATH, now+".txt"), "w")
 
 SETTING = config["SETTING"]
 CLASSES = config["CLASSES"]
@@ -64,6 +61,7 @@ INIT_NUM = VISUALIZATION_PARAMETER["INIT_NUM"]
 ALPHA = VISUALIZATION_PARAMETER["ALPHA"]
 BETA = VISUALIZATION_PARAMETER["BETA"]
 MAX_HAUSDORFF = VISUALIZATION_PARAMETER["MAX_HAUSDORFF"]
+# HIDDEN_LAYER = VISUALIZATION_PARAMETER["HIDDEN_LAYER"]
 ENCODER_DIMS = VISUALIZATION_PARAMETER["ENCODER_DIMS"]
 DECODER_DIMS = VISUALIZATION_PARAMETER["DECODER_DIMS"]
 S_N_EPOCHS = VISUALIZATION_PARAMETER["S_N_EPOCHS"]
@@ -86,12 +84,13 @@ net = eval("subject_model.{}()".format(NET))
 ########################################################################################################################
 #                                                    TRAINING SETTING                                                  #
 ########################################################################################################################
-data_provider = TimeVisDataProvider(CONTENT_PATH, net, EPOCH_START, EPOCH_END, EPOCH_PERIOD, split=-1, device=DEVICE, classes=CLASSES,verbose=1)
+data_provider = NormalDataProvider(CONTENT_PATH, net, EPOCH_START, EPOCH_END, EPOCH_PERIOD, split=-1, device=DEVICE, classes=CLASSES,verbose=1)
 if PREPROCESS:
     data_provider._meta_data()
     if B_N_EPOCHS >0:
         data_provider._estimate_boundary(LEN//10, l_bound=L_BOUND)
 
+# model = SingleVisualizationModel(input_dims=512, output_dims=2, units=256, hidden_layer=HIDDEN_LAYER)
 model = VisModel(ENCODER_DIMS, DECODER_DIMS)
 
 negative_sample_rate = 5
@@ -100,6 +99,7 @@ _a, _b = find_ab_params(1.0, min_dist)
 umap_loss_fn = UmapLoss(negative_sample_rate, DEVICE, _a, _b, repulsion_strength=1.0)
 recon_loss_fn = ReconstructionLoss(beta=1.0)
 criterion = SingleVisLoss(umap_loss_fn, recon_loss_fn, lambd=LAMBDA)
+# projector = Projector(vis_model=model, content_path=CONTENT_PATH, segments=SEGMENTS, device=DEVICE)
 projector = TimeVisProjector(vis_model=model, content_path=CONTENT_PATH, vis_model_name=VIS_MODEL_NAME, device=DEVICE)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=.01, weight_decay=1e-5)
@@ -149,17 +149,27 @@ trainer.save(save_dir=save_dir, file_name="{}".format(VIS_MODEL_NAME))
 #                                                      VISUALIZATION                                                   #
 ########################################################################################################################
 
-vis = visualizer(data_provider, projector, 200)
-save_dir = os.path.join(data_provider.content_path, "img")
-os.makedirs(save_dir, exist_ok=True)
+# from singleVis.visualizer import visualizer
 
-for i in range(EPOCH_START, EPOCH_END+1, EPOCH_PERIOD):
-    vis.savefig(i, path=os.path.join(save_dir, "{}_{}_{}.png".format(DATASET, i, VIS_METHOD)))
+# vis = visualizer(data_provider, projector, 200, CLASSES)
+# save_dir = os.path.join(data_provider.content_path, "img")
+# os.makedirs(save_dir)
 
-########################################################################################################################
-#                                                       EVALUATION                                                     #
-########################################################################################################################
-eval_epochs = range(EPOCH_START, EPOCH_END, EPOCH_PERIOD)
-evaluator = Evaluator(data_provider, projector)
-for eval_epoch in eval_epochs:
-    evaluator.save_epoch_eval(eval_epoch, 15, temporal_k=5, file_name="{}_{}".format(VIS_METHOD, EVALUATION_NAME))
+# for i in range(EPOCH_START, EPOCH_END+1, EPOCH_PERIOD):
+#     vis.savefig(i, path=os.path.join(save_dir, "{}_{}_{}.png".format(DATASET, i, VIS_METHOD)))
+
+# ########################################################################################################################
+# #                                                       EVALUATION                                                     #
+# ########################################################################################################################
+
+# EVAL_EPOCH_DICT = {
+#     "mnist_full":[1,2,5,10,13,16,20],
+#     "fmnist_full":[1,2,6,11,25,30,36,50],
+#     "cifar10_full":[1,3,9,18,24,41,70,100,160,200]
+# }
+# eval_epochs = EVAL_EPOCH_DICT[DATASET]
+
+# evaluator = Evaluator(data_provider, projector)
+
+# for eval_epoch in eval_epochs:
+#     evaluator.save_epoch_eval(eval_epoch, 15, temporal_k=5, file_name="{}_{}".format(VIS_METHOD, EVALUATION_NAME))

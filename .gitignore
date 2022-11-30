@@ -130,4 +130,5 @@ dmypy.json
 
 data/
 experiments/
+experiments/mnist.png
 

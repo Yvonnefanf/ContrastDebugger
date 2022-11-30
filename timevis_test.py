@@ -7,10 +7,11 @@ import argparse
 
 from umap.umap_ import find_ab_params
 
-from singleVis.SingleVisualizationModel import SingleVisualizationModel
 from singleVis.data import NormalDataProvider
 from singleVis.eval.evaluator import Evaluator
 from singleVis.projector import Projector
+
+from singleVis.SingleVisualizationModel import VisModel
 
 
 ########################################################################################################################
@@ -55,7 +56,9 @@ INIT_NUM = VISUALIZATION_PARAMETER["INIT_NUM"]
 ALPHA = VISUALIZATION_PARAMETER["ALPHA"]
 BETA = VISUALIZATION_PARAMETER["BETA"]
 MAX_HAUSDORFF = VISUALIZATION_PARAMETER["MAX_HAUSDORFF"]
-HIDDEN_LAYER = VISUALIZATION_PARAMETER["HIDDEN_LAYER"]
+# HIDDEN_LAYER = VISUALIZATION_PARAMETER["HIDDEN_LAYER"]
+ENCODER_DIMS = VISUALIZATION_PARAMETER["ENCODER_DIMS"]
+DECODER_DIMS = VISUALIZATION_PARAMETER["DECODER_DIMS"]
 
 
 VIS_MODEL_NAME = VISUALIZATION_PARAMETER["VIS_MODEL_NAME"]
@@ -91,7 +94,8 @@ data_provider = NormalDataProvider(CONTENT_PATH, net, EPOCH_START, EPOCH_END, EP
 if PREPROCESS:
     data_provider.initialize(LEN//10, l_bound=L_BOUND)
 
-model = SingleVisualizationModel(input_dims=512, output_dims=2, units=256, hidden_layer=HIDDEN_LAYER)
+# model = SingleVisualizationModel(input_dims=512, output_dims=2, units=256, hidden_layer=HIDDEN_LAYER)
+model = VisModel(ENCODER_DIMS, DECODER_DIMS)
 projector = Projector(vis_model=model, content_path=CONTENT_PATH, segments=SEGMENTS, device=DEVICE)
 
 

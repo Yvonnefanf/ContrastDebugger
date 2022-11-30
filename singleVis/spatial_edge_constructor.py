@@ -160,6 +160,7 @@ class RandomSpatialEdgeConstructor(SpatialEdgeConstructor):
         time_step_idxs_list = list()
 
         train_num = self.data_provider.train_num
+        # random
         selected_idxs = np.random.choice(np.arange(train_num), size=self.init_num, replace=False)
         selected_idxs_t = np.array(range(len(selected_idxs)))
 
@@ -373,6 +374,252 @@ class kcSpatialEdgeConstructor(SpatialEdgeConstructor):
         return edge_to, edge_from, weight, feature_vectors, time_step_nums, time_step_idxs_list, knn_indices, sigmas, rhos, attention
 
 
+
+class kcSpatialAlignmentEdgeConstructor(SpatialEdgeConstructor):
+    def __init__(self, data_provider, init_num, s_n_epochs, b_n_epochs, n_neighbors, MAX_HAUSDORFF, ALPHA, BETA, ref_provider, init_idxs=None) -> None:
+        super().__init__(data_provider, init_num, s_n_epochs, b_n_epochs, n_neighbors)
+        self.MAX_HAUSDORFF = MAX_HAUSDORFF
+        self.ALPHA = ALPHA
+        self.BETA = BETA
+        self.init_idxs = init_idxs
+        self.ref_provider = ref_provider
+    
+    def _get_unit(self, data, adding_num=100):
+        t0 = time.time()
+        l = len(data)
+        idxs = np.random.choice(np.arange(l), size=self.init_num, replace=False)
+        # _,_ = hausdorff_dist_cus(data, idxs)
+
+        id = IntrinsicDim(data)
+        d0 = id.twonn_dimension_fast()
+        # d0 = twonn_dimension_fast(data)
+
+        kc = kCenterGreedy(data)
+        _ = kc.select_batch_with_budgets(idxs, adding_num)
+        c0 = kc.hausdorff()
+        t1 = time.time()
+        return c0, d0, "{:.1f}".format(t1-t0)
+    
+    def construct(self):
+        """construct spatio-temporal complex and get edges
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+
+        # dummy input
+        edge_to = None
+        edge_from = None
+        sigmas = None
+        rhos = None
+        weight = None
+        probs = None
+        feature_vectors = None
+        attention = None
+        knn_indices = None
+        time_step_nums = list()
+        time_step_idxs_list = list()
+
+        # REFERENCE
+        ref_edge_to = None
+        ref_edge_from = None
+        ref_sigmas = None
+        ref_rhos = None
+        ref_weight = None
+        ref_probs = None
+        ref_feature_vectors = None
+        ref_attention = None
+        ref_knn_indices = None
+        ref_time_step_nums = list()
+        ref_time_step_idxs_list = list()
+  
+
+        train_num = self.data_provider.train_num
+        if self.init_idxs is None:
+            selected_idxs = np.random.choice(np.arange(train_num), size=self.init_num, replace=False)
+        else:
+            selected_idxs = np.copy(self.init_idxs)
+
+        baseline_data = self.data_provider.train_representation(self.data_provider.e)
+        max_x = np.linalg.norm(baseline_data, axis=1).max()
+        baseline_data = baseline_data/max_x
+        
+        c0,d0,_ = self._get_unit(baseline_data)
+
+        # each time step
+        for t in range(self.data_provider.e, self.data_provider.s - 1, -self.data_provider.p):
+            print("=================+++={:d}=+++================".format(t))
+            print(self.data_provider.e,self.data_provider.s,self.data_provider.p)
+
+            # load train data and border centers
+            train_data = self.data_provider.train_representation(t).squeeze()
+            # normalize data by max ||x||_2
+            max_x = np.linalg.norm(train_data, axis=1).max()
+            train_data = train_data/max_x
+            # get normalization parameters for different epochs
+            c,d,_ = self._get_unit(train_data)
+            c_c0 = math.pow(c/c0, self.BETA)
+            d_d0 = math.pow(d/d0, self.ALPHA)
+            print("Finish calculating normaling factor")
+              
+            # REFERENCE
+            ref_train_data = self.ref_provider.train_representation(t).squeeze()
+            ref_max_x = np.linalg.norm(train_data, axis=1).max()
+            ref_train_data = ref_train_data/ref_max_x
+            ref_c,ref_d,ref_ = self._get_unit(ref_train_data)
+            print("Finish calculating reference normaling factor")
+
+            
+
+            kc = kCenterGreedy(train_data)
+            _ = kc.select_batch_with_cn(selected_idxs, self.MAX_HAUSDORFF, c_c0, d_d0, p=0.95)
+            selected_idxs = kc.already_selected.astype("int")
+            save_dir = os.path.join(self.data_provider.content_path, "selected_idxs")
+
+            # REFERENCE
+            ref_ = kc.select_batch_with_cn(selected_idxs, self.MAX_HAUSDORFF, c_c0, d_d0, p=0.95)
+            ref_selected_idx = kc.already_selected.astype("int")
+            ref_dir = os.path.join(self.ref_provider.content_path, "selected_idxs")
+
+            with open(os.path.join(ref_dir,"selected_{}.json".format(t))) as f:
+                ref_selected_idx = json.load(f)
+                print('reference select points:',len(ref_selected_idx))
+                selected_idxs = ref_selected_idx
+                
+            if not os.path.exists(save_dir):
+                os.mkdir(save_dir)
+            with open(os.path.join(save_dir,"selected_{}.json".format(t)), "w") as f:
+                json.dump(selected_idxs, f)
+            print("select {:d} points".format(len(selected_idxs)))
+
+            time_step_idxs_list.insert(0, np.arange(len(selected_idxs)).tolist())
+            print("time_step_idxs_list[]",t,time_step_idxs_list )
+
+
+
+            train_data = self.data_provider.train_representation(t).squeeze()
+            train_data = train_data[selected_idxs]
+            
+            # REFERENCE
+            ref_train_data = self.ref_provider.train_representation(t).squeeze()
+            ref_train_data = ref_train_data[ref_selected_idx]
+
+
+            if self.b_n_epochs != 0:
+                # select highly used border centers...
+                border_centers = self.data_provider.border_representation(t).squeeze()
+                t_num = len(selected_idxs)
+                b_num = len(border_centers)
+
+                # REFERENCE select highly used border centers....
+                ref_border_centers = self.ref_provider.border_representation(t).squeeze()
+                ref_b_num = len(ref_border_centers)
+
+
+                complex, sigmas_t1, rhos_t1, knn_idxs_t = self._construct_fuzzy_complex(train_data)
+                bw_complex, sigmas_t2, rhos_t2, _ = self._construct_boundary_wise_complex(train_data, border_centers)
+                edge_to_t, edge_from_t, weight_t = self._construct_step_edge_dataset(complex, bw_complex)
+                sigmas_t = np.concatenate((sigmas_t1, sigmas_t2[len(sigmas_t1):]), axis=0)
+                rhos_t = np.concatenate((rhos_t1, rhos_t2[len(rhos_t1):]), axis=0)
+                fitting_data = np.concatenate((train_data, border_centers), axis=0)
+                pred_model = self.data_provider.prediction_function(t)
+                attention_t = get_attention(pred_model, fitting_data, temperature=.01, device=self.data_provider.DEVICE, verbose=1)
+
+                # REFERENCE
+                ref_complex, ref_sigmas_t1,ref_rhos_t1, ref_knn_idxs_t = self._construct_fuzzy_complex(ref_train_data)
+                ref_bw_complex, ref_sigmas_t2, ref_rhos_t2, ref_ = self._construct_boundary_wise_complex(ref_train_data, ref_border_centers)
+                ref_edge_to_t, ref_edge_from_t, ref_weight_t = self._construct_step_edge_dataset(ref_complex, ref_bw_complex)
+                ref_sigmas_t = np.concatenate((ref_sigmas_t1, ref_sigmas_t2[len(ref_sigmas_t1):]), axis=0)
+                ref_rhos_t = np.concatenate((ref_rhos_t1, ref_rhos_t2[len(ref_rhos_t1):]), axis=0)
+                ref_fitting_data = np.concatenate((ref_train_data, ref_border_centers), axis=0)
+                ref_pred_model = self.ref_provider.prediction_function(t)
+                ref_attention_t = get_attention(ref_pred_model, ref_fitting_data, temperature=.01, device=self.ref_provider.DEVICE, verbose=1)
+
+                # REFERENCE
+                # ref_sigmas_t = np.concatenate((ref_rhos_t1,))
+
+               
+
+            else:
+                t_num = len(selected_idxs)
+                b_num = 0
+
+                complex, sigmas_t, rhos_t, knn_idxs_t = self._construct_fuzzy_complex(train_data)
+                edge_to_t, edge_from_t, weight_t = self._construct_step_edge_dataset(complex, None)
+                fitting_data = np.copy(train_data)
+                pred_model = self.data_provider.prediction_function(t)
+                attention_t = get_attention(pred_model, fitting_data, temperature=.01, device=self.data_provider.DEVICE, verbose=1)
+
+                #REFERENCE
+                ref_complex, ref_sigmas_t, ref_rhos_t, ref_knn_idxs_t = self._construct_fuzzy_complex(ref_train_data)
+                ref_edge_to_t, ref_edge_from_t, ref_weight_t = self._construct_step_edge_dataset(ref_complex, None)
+                ref_fitting_data = np.copy(ref_train_data)
+                ref_pred_model = self.ref_provider.prediction_function(t)
+                ref_attention_t = get_attention(ref_pred_model, ref_fitting_data, temperature=.01, device=self.ref_provider.DEVICE, verbose=1)
+
+
+            if edge_to is None:
+                edge_to = edge_to_t
+                edge_from = edge_from_t
+                weight = weight_t
+                probs = weight_t / weight_t.max()
+                feature_vectors = fitting_data
+                attention = attention_t
+                sigmas = sigmas_t
+                rhos = rhos_t
+                knn_indices = knn_idxs_t
+                # npr = npr_t
+                time_step_nums.insert(0, (t_num, b_num))
+            else:
+                # every round, we need to add len(data) to edge_to(as well as edge_from) index
+                increase_idx = len(fitting_data)
+                edge_to = np.concatenate((edge_to_t, edge_to + increase_idx), axis=0)
+                edge_from = np.concatenate((edge_from_t, edge_from + increase_idx), axis=0)
+                # normalize weight to be in range (0, 1)
+                weight = np.concatenate((weight_t, weight), axis=0)
+                probs_t = weight_t / weight_t.max()
+                probs = np.concatenate((probs_t, probs), axis=0)
+                sigmas = np.concatenate((sigmas_t, sigmas), axis=0)
+                rhos = np.concatenate((rhos_t, rhos), axis=0)
+                feature_vectors = np.concatenate((fitting_data, feature_vectors), axis=0)
+                attention = np.concatenate((attention_t, attention), axis=0)
+                knn_indices = np.concatenate((knn_idxs_t, knn_indices+increase_idx), axis=0)
+                # npr = np.concatenate((npr_t, npr), axis=0)
+                time_step_nums.insert(0, (t_num, b_num))
+            
+            #REFERENCE
+            if ref_edge_to is None:
+                ref_edge_to = ref_edge_to_t
+                ref_edge_from = ref_edge_from_t
+                ref_weight = ref_weight_t
+                ref_probs = ref_weight_t / ref_weight_t.max()
+                ref_feature_vectors = ref_fitting_data
+                ref_attention = ref_attention_t
+                ref_sigmas = ref_sigmas_t
+                ref_rhos = ref_rhos_t
+                ref_knn_indices = ref_knn_idxs_t
+                # npr = npr_t
+                ref_time_step_nums.insert(0, (t_num, b_num))
+            else:
+                # every round, we need to add len(data) to edge_to(as well as edge_from) index
+                ref_increase_idx = len(ref_fitting_data)
+                ref_edge_to = np.concatenate((ref_edge_to_t, ref_edge_to + ref_increase_idx), axis=0)
+                ref_edge_from = np.concatenate((edge_from_t, edge_from + ref_increase_idx), axis=0)
+                # normalize weight to be in range (0, 1)
+                ref_weight = np.concatenate((ref_weight_t, ref_weight), axis=0)
+                ref_probs_t = ref_weight_t / ref_weight_t.max()
+                ref_probs = np.concatenate((ref_probs_t, ref_probs), axis=0)
+                ref_sigmas = np.concatenate((ref_sigmas_t, ref_sigmas), axis=0)
+                ref_rhos = np.concatenate((ref_rhos_t, ref_rhos), axis=0)
+                ref_feature_vectors = np.concatenate((ref_fitting_data, ref_feature_vectors), axis=0)
+                ref_attention = np.concatenate((ref_attention_t, ref_attention), axis=0)
+                ref_knn_indices = np.concatenate((ref_knn_idxs_t, ref_knn_indices+increase_idx), axis=0)
+                # npr = np.concatenate((npr_t, npr), axis=0)
+                ref_time_step_nums.insert(0, (t_num, b_num))
+
+        return edge_to, edge_from, weight, feature_vectors, time_step_nums, time_step_idxs_list, knn_indices, sigmas, rhos, attention, ref_edge_to, ref_edge_from, ref_weight, ref_feature_vectors, ref_knn_indices, ref_sigmas, ref_rhos, ref_attention
 
 class kcParallelSpatialEdgeConstructor(SpatialEdgeConstructor):
     def __init__(self, data_provider, init_num, s_n_epochs, b_n_epochs, n_neighbors, MAX_HAUSDORFF, ALPHA, BETA) -> None:

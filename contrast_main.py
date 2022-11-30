@@ -15,10 +15,12 @@ from singleVis.losses import UmapLoss, ReconstructionLoss, SingleVisLoss
 from singleVis.edge_dataset import DataHandler
 from singleVis.trainer import SingleVisTrainer
 from singleVis.data import NormalDataProvider
-from singleVis.spatial_edge_constructor import kcSpatialEdgeConstructor
-from singleVis.temporal_edge_constructor import GlobalTemporalEdgeConstructor
+from singleVis.spatial_edge_constructor import kcSpatialAlignmentEdgeConstructor
+# from singleVis.temporal_edge_constructor import GlobalTemporalEdgeConstructor
+from singleVis.alignment_edge_constructor import LocalAlignmentEdgeConstructor
 from singleVis.projector import TimeVisProjector
 from singleVis.eval.evaluator import Evaluator
+
 ########################################################################################################################
 #                                                    VISUALIZATION SETTING                                             #
 ########################################################################################################################
@@ -28,10 +30,17 @@ VIS_METHOD= "TimeVis"
 ########################################################################################################################
 parser = argparse.ArgumentParser(description='Process hyperparameters...')
 parser.add_argument('--content_path', type=str)
+# reference data path
+parser.add_argument('--reference_path', type=str)
+
 args = parser.parse_args()
 
 CONTENT_PATH = args.content_path
+REF_PATH = args.reference_path
+sys.path.append(REF_PATH)
 sys.path.append(CONTENT_PATH)
+
+
 from config import config
 
 
@@ -43,7 +52,6 @@ sys.stdout = open(os.path.join(CONTENT_PATH, now+".txt"), "w")
 SETTING = config["SETTING"]
 CLASSES = config["CLASSES"]
 DATASET = config["DATASET"]
-PREPROCESS = config["VISUALIZATION"]["PREPROCESS"]
 GPU_ID = config["GPU"]
 EPOCH_START = config["EPOCH_START"]
 EPOCH_END = config["EPOCH_END"]
@@ -56,6 +64,7 @@ LEN = TRAINING_PARAMETER["train_num"]
 
 # Training parameter (visualization model)
 VISUALIZATION_PARAMETER = config["VISUALIZATION"]
+PREPROCESS = VISUALIZATION_PARAMETER["PREPROCESS"]
 LAMBDA = VISUALIZATION_PARAMETER["LAMBDA"]
 B_N_EPOCHS = VISUALIZATION_PARAMETER["BOUNDARY"]["B_N_EPOCHS"]
 L_BOUND = VISUALIZATION_PARAMETER["BOUNDARY"]["L_BOUND"]
@@ -72,12 +81,11 @@ N_NEIGHBORS = VISUALIZATION_PARAMETER["N_NEIGHBORS"]
 PATIENT = VISUALIZATION_PARAMETER["PATIENT"]
 MAX_EPOCH = VISUALIZATION_PARAMETER["MAX_EPOCH"]
 
-VIS_MODEL_NAME = VISUALIZATION_PARAMETER["VIS_MODEL_NAME"]
+VIS_MODEL_NAME = 'contrast'
 EVALUATION_NAME = VISUALIZATION_PARAMETER["EVALUATION_NAME"]
 
 SEGMENTS = [(EPOCH_START, EPOCH_END)]
 
-REFERENCE_PATH = VISUALIZATION_PARAMETER["REFERENCE_PATH"]
 
 
 # contrast vis -> reference
@@ -92,6 +100,11 @@ net = eval("subject_model.{}()".format(NET))
 ########################################################################################################################
 #                                                    TRAINING SETTING                                                  #
 ########################################################################################################################
+
+##### load reference data ##############
+
+ref_provider = NormalDataProvider(REF_PATH, net, EPOCH_START, EPOCH_END, EPOCH_PERIOD, split=-1, device=DEVICE, classes=CLASSES,verbose=1)
+
 data_provider = NormalDataProvider(CONTENT_PATH, net, EPOCH_START, EPOCH_END, EPOCH_PERIOD, split=-1, device=DEVICE, classes=CLASSES,verbose=1)
 if PREPROCESS:
     data_provider._meta_data()
@@ -108,16 +121,19 @@ umap_loss_fn = UmapLoss(negative_sample_rate, DEVICE, _a, _b, repulsion_strength
 recon_loss_fn = ReconstructionLoss(beta=1.0)
 criterion = SingleVisLoss(umap_loss_fn, recon_loss_fn, lambd=LAMBDA)
 # projector = Projector(vis_model=model, content_path=CONTENT_PATH, segments=SEGMENTS, device=DEVICE)
+ref_projector = TimeVisProjector(vis_model=model, content_path=REF_PATH, vis_model_name=VIS_MODEL_NAME, device=DEVICE)
 projector = TimeVisProjector(vis_model=model, content_path=CONTENT_PATH, vis_model_name=VIS_MODEL_NAME, device=DEVICE)
 
 optimizer = torch.optim.Adam(model.parameters(), lr=.01, weight_decay=1e-5)
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=4, gamma=.1)
 
 t0 = time.time()
-spatial_cons = kcSpatialEdgeConstructor(data_provider=data_provider, init_num=INIT_NUM, s_n_epochs=S_N_EPOCHS, b_n_epochs=B_N_EPOCHS, n_neighbors=N_NEIGHBORS, MAX_HAUSDORFF=MAX_HAUSDORFF, ALPHA=ALPHA, BETA=BETA)
-s_edge_to, s_edge_from, s_probs, feature_vectors, time_step_nums, time_step_idxs_list, knn_indices, sigmas, rhos, attention = spatial_cons.construct()
-temporal_cons = GlobalTemporalEdgeConstructor(X=feature_vectors, time_step_nums=time_step_nums, sigmas=sigmas, rhos=rhos, n_neighbors=N_NEIGHBORS, n_epochs=T_N_EPOCHS)
-t_edge_to, t_edge_from, t_probs = temporal_cons.construct()
+
+spatial_cons = kcSpatialAlignmentEdgeConstructor(data_provider=data_provider, init_num=INIT_NUM, s_n_epochs=S_N_EPOCHS, b_n_epochs=B_N_EPOCHS, n_neighbors=N_NEIGHBORS, MAX_HAUSDORFF=MAX_HAUSDORFF, ALPHA=ALPHA, BETA=BETA, ref_provider=ref_provider)
+s_edge_to, s_edge_from, s_probs, feature_vectors, time_step_nums, time_step_idxs_list, knn_indices, sigmas, rhos, attention, ref_edge_to, ref_edge_from, ref_weight, ref_feature_vectors, ref_knn_indices, ref_sigmas, ref_rhos, ref_attention = spatial_cons.construct()
+alignment_cons = LocalAlignmentEdgeConstructor(X=feature_vectors, time_step_nums=time_step_nums, sigmas=sigmas, rhos=rhos, n_neighbors=N_NEIGHBORS, n_epochs=T_N_EPOCHS, persistent=2,time_step_idxs_list=time_step_idxs_list, knn_indices=knn_indices, ref_edge_to=ref_edge_to, ref_edge_from=ref_edge_from, ref_weight = ref_weight, ref_X=ref_feature_vectors, ref_knn_indices=ref_knn_indices, ref_sigmas=ref_sigmas, ref_rhos=ref_rhos, ref_provider=ref_provider, ref_projector=ref_projector)
+t_edge_to, t_edge_from, t_probs = alignment_cons.construct()
+# alignment_cons = GlobalAlignmentContrastEdgeConstructor(X = feature_vectors)
 t1 = time.time()
 
 edge_to = np.concatenate((s_edge_to, t_edge_to),axis=0)

@@ -6,7 +6,7 @@ import argparse
 
 
 from singleVis.data import NormalDataProvider
-from singleVis.projector import Projector
+from singleVis.projector import ContrastProjector
 from singleVis.SingleVisualizationModel import VisModel
 ########################################################################################################################
 #                                                     LOAD PARAMETERS                                                  #
@@ -80,11 +80,11 @@ net = eval("subject_model.{}()".format(NET))
 data_provider = NormalDataProvider(CONTENT_PATH, net, EPOCH_START, EPOCH_END, EPOCH_PERIOD, split=-1, device=DEVICE, classes=CLASSES,verbose=1)
 if PREPROCESS:
     data_provider.initialize(LEN//10, l_bound=L_BOUND)
-projector = Projector(vis_model=model, content_path=CONTENT_PATH, segments=SEGMENTS, device=DEVICE)
+projector = ContrastProjector(vis_model=model, content_path=CONTENT_PATH, device=DEVICE)
 
 from singleVis.visualizer import visualizer
 vis = visualizer(data_provider, projector, 200, 'tab10')
-save_dir = os.path.join(CONTENT_PATH , "img")
+save_dir = os.path.join(CONTENT_PATH , "contrastImg")
 os.makedirs(save_dir)
 
 for i in range(EPOCH_START, EPOCH_END+1, EPOCH_PERIOD):

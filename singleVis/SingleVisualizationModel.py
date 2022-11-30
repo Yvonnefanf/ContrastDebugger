@@ -38,7 +38,7 @@ class SingleVisualizationModel(nn.Module):
         
         outputs["umap"] = (embedding_to, embedding_from)
         outputs["recon"] = (recon_to, recon_from)
-
+        print("99911")
         return outputs
 
 class VisModel(nn.Module):
@@ -84,6 +84,7 @@ class VisModel(nn.Module):
 
 
     def forward(self, edge_to, edge_from):
+        # print("99911")
         outputs = dict()
         embedding_to = self.encoder(edge_to)
         embedding_from = self.encoder(edge_from)
@@ -92,5 +93,4 @@ class VisModel(nn.Module):
         
         outputs["umap"] = (embedding_to, embedding_from)
         outputs["recon"] = (recon_to, recon_from)
-
         return outputs

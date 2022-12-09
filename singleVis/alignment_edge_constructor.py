@@ -259,56 +259,56 @@ class LocalAlignmentEdgeConstructor(AlignmentEdgeConstructor):
         #     vals = np.concatenate((vals, vals_t[idxs]), axis=0)    
 
 
-        for window in range(1, 2 + 1, 1):
-            for step in range(0, self.time_steps - window, 1):
-                knn_indices_in = - np.ones((n_all, self.n_neighbors))
-                knn_dist = np.zeros((n_all, self.n_neighbors))
+        # for window in range(1, 2 + 1, 1):
+        #     for step in range(0, self.time_steps - window, 1):
+        #         knn_indices_in = - np.ones((n_all, self.n_neighbors))
+        #         knn_dist = np.zeros((n_all, self.n_neighbors))
 
-                next_knn = self.knn_indices[time_step_num[step+window]:time_step_num[step+window] + self.time_step_nums[step + window][0]]
+        #         next_knn = self.knn_indices[time_step_num[step+window]:time_step_num[step+window] + self.time_step_nums[step + window][0]]
 
-                # knn_indices_in[all_step_num[step]: all_step_num[step] + time_step_nums[step + window][0]] = next_knn
-                increase_idx = all_step_num[step]
-                assert len(next_knn) == len(self.time_step_idxs_list[step+window])
-                for i in range(len(self.time_step_idxs_list[step+window])):
-                    knn_indices_in[increase_idx + self.time_step_idxs_list[step+window][i]]=next_knn[i]
-                knn_indices_in = knn_indices_in.astype('int')
+        #         # knn_indices_in[all_step_num[step]: all_step_num[step] + time_step_nums[step + window][0]] = next_knn
+        #         increase_idx = all_step_num[step]
+        #         assert len(next_knn) == len(self.time_step_idxs_list[step+window])
+        #         for i in range(len(self.time_step_idxs_list[step+window])):
+        #             knn_indices_in[increase_idx + self.time_step_idxs_list[step+window][i]]=next_knn[i]
+        #         knn_indices_in = knn_indices_in.astype('int')
 
-                indices = np.arange(all_step_num[step], all_step_num[step] + self.time_step_nums[step][0], 1)[self.time_step_idxs_list[step+window]]
-                knn_dists_t = knn_dists(self.features, indices, next_knn)
+        #         indices = np.arange(all_step_num[step], all_step_num[step] + self.time_step_nums[step][0], 1)[self.time_step_idxs_list[step+window]]
+        #         knn_dists_t = knn_dists(self.features, indices, next_knn)
 
-                # knn_dist[all_step_num[step]:all_step_num[step] + time_step_nums[step + window][0]] = knn_dists_t
-                assert len(knn_dists_t) == len(self.time_step_idxs_list[step+window])
-                for i in range(len(self.time_step_idxs_list[step+window])):
-                    knn_dist[increase_idx + self.time_step_idxs_list[step+window][i]]=knn_dists_t[i]
-                knn_dist = knn_dist.astype('float32')
+        #         # knn_dist[all_step_num[step]:all_step_num[step] + time_step_nums[step + window][0]] = knn_dists_t
+        #         assert len(knn_dists_t) == len(self.time_step_idxs_list[step+window])
+        #         for i in range(len(self.time_step_idxs_list[step+window])):
+        #             knn_dist[increase_idx + self.time_step_idxs_list[step+window][i]]=knn_dists_t[i]
+        #         knn_dist = knn_dist.astype('float32')
 
-                rows_t, cols_t, vals_t, _ = compute_membership_strengths(knn_indices_in, knn_dist, self.sigmas, self.rhos, return_dists=False)
-                idxs = vals_t > 0
-                rows = np.concatenate((rows, rows_t[idxs]), axis=0)
-                cols = np.concatenate((cols, cols_t[idxs]), axis=0)
-                vals = np.concatenate((vals, vals_t[idxs]), axis=0)
+        #         rows_t, cols_t, vals_t, _ = compute_membership_strengths(knn_indices_in, knn_dist, self.sigmas, self.rhos, return_dists=False)
+        #         idxs = vals_t > 0
+        #         rows = np.concatenate((rows, rows_t[idxs]), axis=0)
+        #         cols = np.concatenate((cols, cols_t[idxs]), axis=0)
+        #         vals = np.concatenate((vals, vals_t[idxs]), axis=0)
         # backward
-        for window in range(1, 2 + 1, 1):
-            for step in range(self.time_steps-1, 0 + window, -1):
-                knn_indices_in = - np.ones((n_all, self.n_neighbors))
-                knn_dist = np.zeros((n_all, self.n_neighbors))
+        # for window in range(1, 2 + 1, 1):
+        #     for step in range(self.time_steps-1, 0 + window, -1):
+        #         knn_indices_in = - np.ones((n_all, self.n_neighbors))
+        #         knn_dist = np.zeros((n_all, self.n_neighbors))
 
-                prev_knn = self.knn_indices[time_step_num[step-window]:time_step_num[step-window] + self.time_step_nums[step-window][0]]
+        #         prev_knn = self.knn_indices[time_step_num[step-window]:time_step_num[step-window] + self.time_step_nums[step-window][0]]
 
-                knn_indices_in[all_step_num[step]: all_step_num[step] + self.time_step_nums[step][0]] = prev_knn[self.time_step_idxs_list[step]]
-                knn_indices_in = knn_indices_in.astype('int')
+        #         knn_indices_in[all_step_num[step]: all_step_num[step] + self.time_step_nums[step][0]] = prev_knn[self.time_step_idxs_list[step]]
+        #         knn_indices_in = knn_indices_in.astype('int')
 
-                indices = np.arange(all_step_num[step], all_step_num[step] + self.time_step_nums[step][0], 1)
-                knn_dists_t = knn_dists(self.features, indices, prev_knn[self.time_step_idxs_list[step]])
+        #         indices = np.arange(all_step_num[step], all_step_num[step] + self.time_step_nums[step][0], 1)
+        #         knn_dists_t = knn_dists(self.features, indices, prev_knn[self.time_step_idxs_list[step]])
 
-                knn_dist[all_step_num[step]:all_step_num[step] + self.time_step_nums[step][0]] = knn_dists_t
-                knn_dist = knn_dist.astype('float32')
+        #         knn_dist[all_step_num[step]:all_step_num[step] + self.time_step_nums[step][0]] = knn_dists_t
+        #         knn_dist = knn_dist.astype('float32')
 
-                rows_t, cols_t, vals_t, _ = compute_membership_strengths(knn_indices_in, knn_dist, self.sigmas, self.rhos, return_dists=False)
-                idxs = vals_t > 0
-                rows = np.concatenate((rows, rows_t[idxs]), axis=0)
-                cols = np.concatenate((cols, cols_t[idxs]), axis=0)
-                vals = np.concatenate((vals, vals_t[idxs]), axis=0)
+        #         rows_t, cols_t, vals_t, _ = compute_membership_strengths(knn_indices_in, knn_dist, self.sigmas, self.rhos, return_dists=False)
+        #         idxs = vals_t > 0
+        #         rows = np.concatenate((rows, rows_t[idxs]), axis=0)
+        #         cols = np.concatenate((cols, cols_t[idxs]), axis=0)
+        #         vals = np.concatenate((vals, vals_t[idxs]), axis=0)
         time_complex = self.temporal_simplicial_set(rows=rows, cols=cols, vals=vals, n_vertice=len(self.features))
 
         # normalize for symmetry reason

@@ -451,11 +451,11 @@ class kcSpatialAlignmentEdgeConstructor(SpatialEdgeConstructor):
         # each time step
         for t in range(self.data_provider.e, self.data_provider.s - 1, -self.data_provider.p):
             print("=================+++={:d}=+++================".format(t))
-<<<<<<< HEAD
+
             # print(self.data_provider.e,self.data_provider.s,self.data_provider.p)
-=======
+
             print(self.data_provider.e,self.data_provider.s,self.data_provider.p)
->>>>>>> 4bc781b8b0e5d60e121bd402b8a3d8847accdf65
+
 
             # load train data and border centers
             train_data = self.data_provider.train_representation(t).squeeze()
@@ -466,22 +466,20 @@ class kcSpatialAlignmentEdgeConstructor(SpatialEdgeConstructor):
             c,d,_ = self._get_unit(train_data)
             c_c0 = math.pow(c/c0, self.BETA)
             d_d0 = math.pow(d/d0, self.ALPHA)
-<<<<<<< HEAD
-            # print("Finish calculating normaling factor")
-=======
+
+
             print("Finish calculating normaling factor")
->>>>>>> 4bc781b8b0e5d60e121bd402b8a3d8847accdf65
+
               
             # REFERENCE
             ref_train_data = self.ref_provider.train_representation(t).squeeze()
             ref_max_x = np.linalg.norm(train_data, axis=1).max()
             ref_train_data = ref_train_data/ref_max_x
             ref_c,ref_d,ref_ = self._get_unit(ref_train_data)
-<<<<<<< HEAD
-            # print("Finish calculating reference normaling factor")
-=======
+
+
             print("Finish calculating reference normaling factor")
->>>>>>> 4bc781b8b0e5d60e121bd402b8a3d8847accdf65
+
 
             
 
@@ -507,12 +505,14 @@ class kcSpatialAlignmentEdgeConstructor(SpatialEdgeConstructor):
             print("select {:d} points".format(len(selected_idxs)))
 
             time_step_idxs_list.insert(0, np.arange(len(selected_idxs)).tolist())
-<<<<<<< HEAD
-=======
+
+
+
+
             print("time_step_idxs_list[]",t,time_step_idxs_list )
 
 
->>>>>>> 4bc781b8b0e5d60e121bd402b8a3d8847accdf65
+
 
             train_data = self.data_provider.train_representation(t).squeeze()
             train_data = train_data[selected_idxs]

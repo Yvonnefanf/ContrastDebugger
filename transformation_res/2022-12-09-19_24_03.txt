@@ -1,0 +1,41 @@
+Euclid 60.42191990758493
+loss at iteration 0 is: 3813.6029
+Euclid 60.42191990758493
+Euclid 47.20971135145477
+Euclid 36.85184777229133
+Euclid 28.73348545436717
+Euclid 22.373276726294417
+Euclid 17.394513160934167
+loss at iteration 5 is: 311.3261
+Euclid 17.394513160934167
+Euclid 13.502222842909365
+Euclid 10.464670742378706
+Euclid 8.123113432606532
+Euclid 6.398467862937536
+Euclid 5.1183765269315
+loss at iteration 10 is: 26.5722
+Euclid 5.1183765269315
+Euclid 4.157171002096286
+Euclid 3.457217145646018
+Euclid 2.995589709314056
+Euclid 2.73482329792487
+Euclid 2.6317585052872046
+loss at iteration 15 is: 9.8558
+Euclid 2.6317585052872046
+Finish initialization...
+Finish initialization...
+Finish initialization...
+Finish initialization...
+Finish initialization...
+Finish initialization...
+Computing decision regions ...
+Computing decision regions ...
+0.9999999999999999
+noisy20  epoch 1 vs epoch200 
+0.9999999999999999
+noisy20  epoch 1 vs epoch200 
+noisy20  epoch 1 vs epoch200 
+noisy20  epoch 1 vs epoch200 
+0.9999999999999999
+noisy20  epoch 1 vs epoch200 
+0.9999999999999999

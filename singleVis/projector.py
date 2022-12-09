@@ -210,7 +210,7 @@ class TimeVisProjector(Projector):
         self.vis_model.load_state_dict(save_model["state_dict"])
         self.vis_model.to(self.DEVICE)
         self.vis_model.eval()
-        print("Successfully load the TimeVis visualization model for iteration {}".format(iteration))
+        # print("Successfully load the TimeVis visualization model for iteration {}".format(iteration))
 
 
 class ContrastProjector(Projector):

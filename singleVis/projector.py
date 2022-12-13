@@ -213,7 +213,7 @@ class TimeVisProjector(Projector):
 
         # print("Successfully load the TimeVis visualization model for iteration {}".format(iteration))
 
-        print("Successfully load the TimeVis visualization model for iteration {}".format(iteration))
+        # print("Successfully load the TimeVis visualization model for iteration {}".format(iteration))
 
 
 

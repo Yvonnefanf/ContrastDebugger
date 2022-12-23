@@ -38,7 +38,6 @@ class SingleVisualizationModel(nn.Module):
         
         outputs["umap"] = (embedding_to, embedding_from)
         outputs["recon"] = (recon_to, recon_from)
-        print("99911")
         return outputs
 
 class VisModel(nn.Module):

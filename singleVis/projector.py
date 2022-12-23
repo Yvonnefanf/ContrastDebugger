@@ -76,6 +76,11 @@ class Projector(ProjectorAbstractClass):
         self.load(iteration)
         data = self.vis_model.decoder(torch.from_numpy(embedding).to(dtype=torch.float32, device=self.DEVICE)).cpu().detach().numpy()
         return data
+
+    # def batch_inverse(self, iteration, embedding):
+    #     self.load(iteration)
+    #     data = self.vis_model.decoder(torch.from_numpy(embedding).to(dtype=torch.float32, device=self.DEVICE)).cpu().detach().numpy()
+    #     return data
     
     def individual_inverse(self, iteration, embedding):
         self.load(iteration)

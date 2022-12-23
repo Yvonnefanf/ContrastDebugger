@@ -34,7 +34,7 @@ class VisualizerAbstractClass(ABC):
         pass
 
 class visualizer(VisualizerAbstractClass):
-    def __init__(self, data_provider, train_representation, projector, resolution, cmap='tab10'):
+    def __init__(self, data_provider, train_representation, projector, resolution, indicates, cmap='tab10'):
         self.data_provider = data_provider
         self.projector = projector
         self.cmap = plt.get_cmap(cmap)
@@ -42,6 +42,7 @@ class visualizer(VisualizerAbstractClass):
         self.class_num = len(self.classes)
         self.resolution= resolution
         self.train_representation = train_representation
+        self.indicates = indicates
 
     def _init_plot(self, only_img=False):
         '''
@@ -216,6 +217,7 @@ class visualizer(VisualizerAbstractClass):
 
         for c in range(self.class_num):
             data = embedding[np.logical_and(labels == c, labels == pred)]
+            
             self.sample_plots[c].set_data(data.transpose())
 
         for c in range(self.class_num):

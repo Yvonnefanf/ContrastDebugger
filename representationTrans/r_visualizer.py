@@ -34,7 +34,7 @@ class VisualizerAbstractClass(ABC):
         pass
 
 class visualizer(VisualizerAbstractClass):
-    def __init__(self, data_provider, train_representation, projector, indicates, resolution, cmap='tab10'):
+    def __init__(self, data_provider, train_representation, projector, resolution,indicates, cmap='tab10'):
         self.data_provider = data_provider
         self.projector = projector
         self.cmap = plt.get_cmap(cmap)
@@ -170,9 +170,11 @@ class visualizer(VisualizerAbstractClass):
         # params_str = 'res: %d'
         # desc = params_str % (self.resolution)
         # self.desc.set_text(desc)
-
-        train_data = self.train_representation[self.indicates]
-        train_labels = self.data_provider.train_labels(epoch)[self.indicates]
+        train_data = self.train_representation
+        train_labels = self.data_provider.train_labels(epoch)
+        if len(self.indicates):
+            train_data = self.train_representation[self.indicates]
+            train_labels = self.data_provider.train_labels(epoch)[self.indicates]
         pred = self.data_provider.get_pred(epoch, train_data)
         # pred = pred[self.indicates]
         pred = pred.argmax(axis=1)

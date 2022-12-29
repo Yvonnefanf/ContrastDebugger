@@ -205,8 +205,8 @@ def align_embeddings(X: np.ndarray, Y: np.ndarray,
 # np.random.seed(129)
 # m = 10
 # n = 5
-X = ref_data
-Y = clean_data
+X = ref_train_data
+Y = exchange_data
 
 # X_pred = exchange_provider.get_pred(200, ref_provider.train_representation(200))
 # Y_pred = ref_provider.get_pred(200, ref_provider.train_representation(200))
@@ -216,7 +216,7 @@ R = align_embeddings(X, Y)
 print(R)
 import time
 import json
-filename = now = time.strftime("%Y-%m-%d-%H_%M_%Sclean.json", time.localtime(time.time())) 
+filename = now = time.strftime("ref_ex_tar_ref.json", time.localtime(time.time())) 
 rlist = json.dumps(R.tolist())
 with open(filename, 'w', encoding='utf-8') as file_obj:
 

@@ -71,15 +71,15 @@ class visualizer(VisualizerAbstractClass):
         # labels != prediction, labels be a large circle
         for c in range(self.class_num):
             color = self.cmap(c/(self.class_num-1))
-            plot = self.ax.plot([], [], 'o', markeredgecolor=color,
-                fillstyle='full', ms=5)
+            plot = self.ax.plot([], [], '.', markeredgecolor=color,
+                fillstyle='full', ms=7, mew=2.5, zorder=3)
             self.sample_plots.append(plot[0])
 
         # labels != prediction, prediction stays inside of circle
         for c in range(self.class_num):
             color = self.cmap(c / (self.class_num - 1))
             plot = self.ax.plot([], [], 'o', markeredgecolor=color,
-                                fillstyle='full', ms=5, zorder=0)
+                                fillstyle='full', ms=6, zorder=4)
             self.sample_plots.append(plot[0])
 
         # set the mouse-event listeners

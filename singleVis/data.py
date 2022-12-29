@@ -7,6 +7,7 @@ import time
 
 from singleVis.utils import *
 from singleVis.eval.evaluate import evaluate_inv_accu
+import copy
 
 """
 DataContainder module
@@ -362,6 +363,34 @@ class NormalDataProvider(DataProvider):
         data = data.to(self.DEVICE)
         pred = batch_run(prediction_func, data)
         return pred.squeeze()
+    
+
+    def get_low_confidence_pred(self, iteration, data):
+        '''
+        get the prediction score for data in epoch_id
+        :param data: numpy.ndarray
+        :param epoch_id:
+        :return: pred, numpy.ndarray
+        '''
+        prediction_func = self.prediction_function(iteration)
+
+        data = torch.from_numpy(data)
+        data = data.to(self.DEVICE)
+        pred = batch_run(prediction_func, data)
+        for i in range(len(pred)):
+            mx = np.nanmax(pred[i])
+            mn = np.nanmin(pred[i])
+            t = (pred[i]-mn)/(mx-mn)
+        
+            for m in range(len(t)):
+                if t[m] < 0.5:
+                    t[m] = 0.1
+                
+     
+            pred[i] = t
+        
+        print("pred123",pred)
+        return pred.squeeze()
 
     def training_accu(self, epoch):
         data = self.train_representation(epoch)
@@ -716,6 +745,7 @@ class ActiveLearningDataProvider(DataProvider):
         data = data.to(self.DEVICE)
         pred = batch_run(prediction_func, data)
         return pred.squeeze()
+
 
     def training_accu(self, epoch):
         data = self.train_representation_lb(epoch)

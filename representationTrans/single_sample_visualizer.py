@@ -64,7 +64,7 @@ class visualizer(VisualizerAbstractClass):
         # labels = prediction
         for c in range(self.class_num):
             color = self.cmap(c/(self.class_num-1))
-            plot = self.ax.plot([], [], '.', label=self.classes[c], ms=5,
+            plot = self.ax.plot([], [], 'o', label=self.classes[c], ms=5,
                 color=color, zorder=2, picker=mpl.rcParams['lines.markersize'])
             self.sample_plots.append(plot[0])
 
@@ -170,9 +170,13 @@ class visualizer(VisualizerAbstractClass):
         # params_str = 'res: %d'
         # desc = params_str % (self.resolution)
         # self.desc.set_text(desc)
+        train_data = self.train_representation
+        train_labels = self.data_provider.train_labels(epoch)
+        if self.indicates and len(self.indicates):
+            train_data = self.train_representation[self.indicates]
+            train_labels = self.data_provider.train_labels(epoch)[self.indicates]
 
-        train_data = self.train_representation[self.indicates]
-        train_labels = self.data_provider.train_labels(epoch)[self.indicates]
+       
         pred = self.data_provider.get_pred(epoch, train_data)
         # pred = pred[self.indicates]
         pred = pred.argmax(axis=1)

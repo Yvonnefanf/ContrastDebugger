@@ -34,7 +34,7 @@ class VisualizerAbstractClass(ABC):
         pass
 
 class visualizer(VisualizerAbstractClass):
-    def __init__(self, data_provider, R_T, train_representation, projector, resolution, indicates, cmap='tab10'):
+    def __init__(self, data_provider, R, RT_V, train_representation, projector, resolution, indicates, cmap='tab10'):
       
         self.data_provider = data_provider
         self.projector = projector
@@ -44,7 +44,8 @@ class visualizer(VisualizerAbstractClass):
         self.resolution= resolution
         self.train_representation = train_representation
         self.indicates = indicates
-        self.R_T = R_T
+        self.R = R
+        self.RT_V = RT_V
 
     def _init_plot(self, only_img=False):
         '''
@@ -127,13 +128,12 @@ class visualizer(VisualizerAbstractClass):
         ys = np.linspace(y_min, y_max, resolution)
         grid = np.array(np.meshgrid(xs, ys))
         grid = np.swapaxes(grid.reshape(grid.shape[0], -1), 0, 1)
-        print('grid',grid)
 
         # map gridmpoint to images
         grid_samples = self.projector.batch_inverse(epoch, grid)
         np_grid_samples = np.asarray(grid_samples)
         # print("666",type(np_grid_samples),type(self.R_T))
-        new_grid = np.dot(np_grid_samples,self.R_T)
+        new_grid = np.dot(np.dot(np_grid_samples,self.R), self.RT_V)
 
 
         mesh_preds = self.data_provider.get_pred(epoch, new_grid)

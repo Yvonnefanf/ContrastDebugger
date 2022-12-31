@@ -223,7 +223,7 @@ import json
 with open('clean_as_ref_epoch_200.json', 'r', encoding='utf-8') as file_obj:
     X = json.load(file_obj)
 
-Y = np.array(Y)
+X = np.array(X)
 
 R = align_embeddings(X, Y)
 

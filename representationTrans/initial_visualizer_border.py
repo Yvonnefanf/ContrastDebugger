@@ -34,7 +34,7 @@ class VisualizerAbstractClass(ABC):
         pass
 
 class visualizer(VisualizerAbstractClass):
-    def __init__(self, data_provider, train_representation, projector, indicates, resolution, cmap='tab10'):
+    def __init__(self, data_provider, train_representation, projector, resolution, indicates, cmap='tab10'):
         self.data_provider = data_provider
         self.projector = projector
         self.cmap = plt.get_cmap(cmap)

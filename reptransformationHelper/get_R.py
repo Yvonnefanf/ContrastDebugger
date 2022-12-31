@@ -140,6 +140,19 @@ def compute_gradient(X, Y, R):
     ### END CODE HERE ###
     return gradient
 
+def get_pred_diff_list():
+    ref_pred = ref_provider.get_pred(200,  ref_provider.train_representation(200))
+    clean_pred = clean_provider.get_pred(200,  clean_provider.train_representation(200))
+    ref_pred = ref_pred.argmax(axis=1)
+    clean_pred = clean_pred.argmax(axis=1)
+    diff_list = []
+    for i in range(len(ref_pred)):
+        if ref_pred[i] != clean_pred[i]:
+            diff_list.append(i)
+    
+    return diff_list
+
+
 def cauculate(X,Y,R):
     m = len(X)
     Y_2d = projector.batch_project(200, Y)
@@ -184,7 +197,7 @@ def align_embeddings(X: np.ndarray, Y: np.ndarray,
     Euclid = cauculate(X, Y, R)
     k = 0
         
-    train_steps = 5000
+    train_steps = 4000
     for i in range(train_steps):
         if i%50 == 0:
             print(f"iteration {i}") 
@@ -194,6 +207,7 @@ def align_embeddings(X: np.ndarray, Y: np.ndarray,
         ### START CODE HERE (REPLACE INSTANCES OF 'None' with your code) ###
         # use the function that you defined to compute the gradient
         gradient = compute_gradient(X, Y, R)
+
        
         
          # update R by subtracting the learning rate times gradient
@@ -202,21 +216,22 @@ def align_embeddings(X: np.ndarray, Y: np.ndarray,
     
     return R
 
-# np.random.seed(129)
-# m = 10
-# n = 5
-X = ref_train_data
-Y = exchange_data
 
-# X_pred = exchange_provider.get_pred(200, ref_provider.train_representation(200))
-# Y_pred = ref_provider.get_pred(200, ref_provider.train_representation(200))
+Y = ref_train_data
+# import Xi' 
+import json
+with open('clean_as_ref_epoch_200.json', 'r', encoding='utf-8') as file_obj:
+    X = json.load(file_obj)
+
+Y = np.array(Y)
+
 R = align_embeddings(X, Y)
 
 
 print(R)
 import time
-import json
-filename = now = time.strftime("ref_ex_tar_ref.json", time.localtime(time.time())) 
+
+filename = now = time.strftime("benchmark2_RT_ref_clean_tar_ref_use_trans.json", time.localtime(time.time())) 
 rlist = json.dumps(R.tolist())
 with open(filename, 'w', encoding='utf-8') as file_obj:
 

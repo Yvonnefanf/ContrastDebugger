@@ -4,6 +4,9 @@ from sklearn.utils import check_random_state
 from umap.umap_ import fuzzy_simplicial_set
 import numpy as np
 
+"""
+transform reference base on target
+"""
 class ReferenceTransformerAbstractClass(ABC):
     @abstractmethod
     def __init__(self, ref_data_provider, ref_projector, tar_data_provider,* args, **kawargs):

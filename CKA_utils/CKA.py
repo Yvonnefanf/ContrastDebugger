@@ -4,6 +4,7 @@
 import math
 import torch
 import numpy as np
+from sklearn.cross_decomposition import CCA
 
 class CKA(object):
     def __init__(self):
@@ -90,3 +91,15 @@ class CudaCKA(object):
         var1 = torch.sqrt(self.kernel_HSIC(X, X, sigma))
         var2 = torch.sqrt(self.kernel_HSIC(Y, Y, sigma))
         return hsic / (var1 * var2)
+
+
+
+class CCA_val(object):
+    def __init__(self):
+        pass 
+    def cal_CCA(self, X, Y):
+        cca = CCA(n_components=1)
+        cca.fit(X, Y)
+        X_train_r, Y_train_r = cca.transform(X, Y)
+        val = np.corrcoef(X_train_r[:, 0], Y_train_r[:, 0])[0, 1]
+        return val

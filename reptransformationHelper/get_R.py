@@ -25,17 +25,19 @@ from singleVis.eval.evaluator import Evaluator
 
 import torch
 import numpy as np
-from CKA import CKA, CudaCKA
+# from CKA import CKA, CudaCKA
 
 # REF_PATH : reference dataset path
 # CONFUSION_PATH : benchmark1
 # EXCHANGE_PATH : benchmark2
 
-REF_PATH = "/home/yifan/dataset/noisy/pairflip/cifar10/noisy0.001"
-CLEAN_PATH = "/home/yifan/dataset/clean/pairflip/cifar10/0"
 
 CONFUSION_PATH = "/home/yifan/dataset/confusion/pairflip/cifar10/0"
 EXCHANGE_PATH = "/home/yifan/dataset/exchange/pairflip/cifar10/0"
+
+REF_PATH = "/home/yifan/dataset/clean/pairflip/cifar10/0"
+
+CLEAN_PATH = "/home/yifan/dataset/clean_ref/pairflip/cifar10/0"
 
 sys.path.append(REF_PATH)
 
@@ -215,15 +217,11 @@ def align_embeddings(X: np.ndarray, Y: np.ndarray,
         ### END CODE HERE ###
     
     return R
-
-
-Y = ref_train_data
-# import Xi' 
 import json
-with open('clean_as_ref_epoch_200.json', 'r', encoding='utf-8') as file_obj:
-    X = json.load(file_obj)
 
-X = np.array(X)
+X = ref_train_data
+Y = clean_data
+
 
 R = align_embeddings(X, Y)
 
@@ -231,7 +229,7 @@ R = align_embeddings(X, Y)
 print(R)
 import time
 
-filename = now = time.strftime("benchmark2_RT_ref_clean_tar_ref_use_trans.json", time.localtime(time.time())) 
+filename = now = time.strftime("R_all.json", time.localtime(time.time())) 
 rlist = json.dumps(R.tolist())
 with open(filename, 'w', encoding='utf-8') as file_obj:
 

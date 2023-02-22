@@ -6,7 +6,7 @@ import json
 import collections
 sys.path.append("..")
 from singleVis.data import NormalDataProvider
-CONTENT_PATH = "/home/yifan/dataset/test2"
+CONTENT_PATH = "/home/yifan/dataset/resnetnoise/pairflip/cifar10/0"
 
 sys.path.append(CONTENT_PATH)
 from config import config
@@ -22,10 +22,11 @@ VISUALIZATION_PARAMETER = config["VISUALIZATION"]
 LAMBDA = VISUALIZATION_PARAMETER["LAMBDA"]
 L_BOUND = VISUALIZATION_PARAMETER["BOUNDARY"]["L_BOUND"]
 B_N_EPOCHS = VISUALIZATION_PARAMETER["BOUNDARY"]["B_N_EPOCHS"]
-DEVICE = torch.device("cuda:{}".format(GPU_ID) if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda:{}".format(1) if torch.cuda.is_available() else "cpu")
+# DEVICE = 'cpu'
 PREPROCESS = 1
 import Model.model as subject_model
-net = eval("subject_model.{}()".format('l2p_resnet_v2'))
+net = eval("subject_model.{}()".format(NET))
 
 model_path = os.path.join(CONTENT_PATH, "Model")
 

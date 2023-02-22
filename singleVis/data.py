@@ -126,7 +126,9 @@ class NormalDataProvider(DataProvider):
             testing_data = testing_data[test_index]
 
             model_location = os.path.join(self.model_path, "Epoch_{:d}".format(n_epoch), "subject_model.pth")
-            self.model.load_state_dict(torch.load(model_location, map_location=torch.device("cpu")))
+            # print('000')
+            # self.model.load_state_dict(torch.load(model_location, map_location=torch.device("cpu")))
+            self.model.load_state_dict(torch.load(model_location, map_location=torch.device("cpu")), strict = False)
             self.model = self.model.to(self.DEVICE)
             self.model.eval()
 
@@ -330,7 +332,7 @@ class NormalDataProvider(DataProvider):
 
     def prediction_function(self, epoch):
         model_location = os.path.join(self.model_path, "Epoch_{:d}".format(epoch), "subject_model.pth")
-        self.model.load_state_dict(torch.load(model_location, map_location=torch.device("cpu")))
+        self.model.load_state_dict(torch.load(model_location, map_location=torch.device("cpu")), strict = False)
         self.model.to(self.DEVICE)
         self.model.eval()
 
@@ -341,7 +343,8 @@ class NormalDataProvider(DataProvider):
 
     def feature_function(self, epoch):
         model_location = os.path.join(self.model_path, "Epoch_{:d}".format(epoch), "subject_model.pth")
-        self.model.load_state_dict(torch.load(model_location, map_location=torch.device("cpu")))
+        # self.model.load_state_dict(torch.load(model_location, map_location=torch.device("cpu")))
+        self.model.load_state_dict(torch.load(model_location, map_location=torch.device("cpu")), strict = False)
         self.model = self.model.to(self.DEVICE)
         self.model.eval()
 
@@ -444,6 +447,8 @@ class ActiveLearningDataProvider(DataProvider):
 
         model_location = os.path.join(self.model_path, "Iteration_{:d}".format(iteration), "subject_model.pth")
         self.model.load_state_dict(torch.load(model_location, map_location=torch.device("cpu")))
+        # self.model.load_state_dict(torch.load(model_location, map_location=torch.device("cpu")), strict=False)
+        
         self.model = self.model.to(self.DEVICE)
         self.model.eval()
 

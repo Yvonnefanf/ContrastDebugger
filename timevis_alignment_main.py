@@ -10,13 +10,17 @@ from torch.utils.data import WeightedRandomSampler
 from umap.umap_ import find_ab_params
 
 from singleVis.custom_weighted_random_sampler import CustomWeightedRandomSampler
-from singleVis.SingleVisualizationModel import VisModel
-from singleVis.losses import UmapLoss, ReconstructionLoss, SingleVisLoss
-from singleVis.edge_dataset import DataHandler
-from singleVis.trainer import SingleVisTrainer
+from singleVis.SingleVisualizationModel import VisModel, SingleVisualizationModel
+from singleVis.losses import SmoothnessLoss, HybridLoss, UmapLoss, ReconstructionLoss, SingleVisLoss
+# from singleVis.edge_dataset import DataHandler
+from singleVis.edge_dataset import HybridDataHandler
+# from singleVis.trainer import SingleVisTrainer
+from singleVis.trainer import HybridVisTrainer
 from singleVis.data import NormalDataProvider
 from singleVis.spatial_edge_constructor import kcSpatialEdgeConstructor
-from singleVis.temporal_edge_alignment_constructor import GlobalTemporalEdgeConstructor
+##### use alignment_tempory
+from alignment.spatial_edge_constructor import  kcHybridSpatialEdgeConstructor
+from alignment.temporal_edge_constructor import  GlobalTemporalEdgeConstructor, LocalTemporalEdgeConstructor
 from singleVis.projector import TimeVisProjector
 from singleVis.eval.evaluator import Evaluator
 ########################################################################################################################
@@ -28,17 +32,10 @@ VIS_METHOD= "TimeVis"
 ########################################################################################################################
 parser = argparse.ArgumentParser(description='Process hyperparameters...')
 parser.add_argument('--content_path', type=str)
-parser.add_argument('--reference_path', type=str)
-parser.add_argument('--alignment_end', type=int)
-parser.add_argument('--transfer_metrix_path', type=str)
 args = parser.parse_args()
 
 CONTENT_PATH = args.content_path
-REFERENCE_PATH = args.reference_path
-ALIGNMENT_END = args.alignment_end
-#### transfer metrix
-TRANSFER_METRIX_PATH = args.transfer_metrix_path
-
+REF_PATH = '/home/yifan/dataset/resnetwithoutnoise/pairflip/cifar10/0'
 sys.path.append(CONTENT_PATH)
 from config import config
 
@@ -52,6 +49,7 @@ DATASET = config["DATASET"]
 PREPROCESS = config["VISUALIZATION"]["PREPROCESS"]
 GPU_ID = config["GPU"]
 EPOCH_START = config["EPOCH_START"]
+
 EPOCH_END = config["EPOCH_END"]
 EPOCH_PERIOD = config["EPOCH_PERIOD"]
 
@@ -69,7 +67,7 @@ INIT_NUM = VISUALIZATION_PARAMETER["INIT_NUM"]
 ALPHA = VISUALIZATION_PARAMETER["ALPHA"]
 BETA = VISUALIZATION_PARAMETER["BETA"]
 MAX_HAUSDORFF = VISUALIZATION_PARAMETER["MAX_HAUSDORFF"]
-# HIDDEN_LAYER = VISUALIZATION_PARAMETER["HIDDEN_LAYER"]
+HIDDEN_LAYER = VISUALIZATION_PARAMETER["HIDDEN_LAYER"]
 ENCODER_DIMS = VISUALIZATION_PARAMETER["ENCODER_DIMS"]
 DECODER_DIMS = VISUALIZATION_PARAMETER["DECODER_DIMS"]
 S_N_EPOCHS = VISUALIZATION_PARAMETER["S_N_EPOCHS"]
@@ -77,11 +75,13 @@ T_N_EPOCHS = VISUALIZATION_PARAMETER["T_N_EPOCHS"]
 N_NEIGHBORS = VISUALIZATION_PARAMETER["N_NEIGHBORS"]
 PATIENT = VISUALIZATION_PARAMETER["PATIENT"]
 MAX_EPOCH = VISUALIZATION_PARAMETER["MAX_EPOCH"]
+S_LAMBDA = VISUALIZATION_PARAMETER["S_LAMBDA"]
 
 VIS_MODEL_NAME = VISUALIZATION_PARAMETER["VIS_MODEL_NAME"]
+
 EVALUATION_NAME = VISUALIZATION_PARAMETER["EVALUATION_NAME"]
 
-SEGMENTS = [(EPOCH_START, ALIGNMENT_END)]
+SEGMENTS = [(EPOCH_START, EPOCH_END)]
 
 # define hyperparameters
 DEVICE = torch.device("cuda:{}".format(GPU_ID) if torch.cuda.is_available() else "cpu")
@@ -89,15 +89,11 @@ DEVICE = torch.device("cuda:{}".format(GPU_ID) if torch.cuda.is_available() else
 import Model.model as subject_model
 net = eval("subject_model.{}()".format(NET))
 
-
-import json
-with open(TRANSFER_METRIX_PATH, 'r', encoding='utf-8') as file_obj:
-    TRANSFER_METRIX = json.load(file_obj)
-
-
 ########################################################################################################################
 #                                                    TRAINING SETTING                                                  #
 ########################################################################################################################
+
+
 data_provider = NormalDataProvider(CONTENT_PATH, net, EPOCH_START, EPOCH_END, EPOCH_PERIOD, split=-1, device=DEVICE, classes=CLASSES,verbose=1)
 if PREPROCESS:
     data_provider._meta_data()
@@ -105,24 +101,51 @@ if PREPROCESS:
         data_provider._estimate_boundary(LEN//10, l_bound=L_BOUND)
 
 # model = SingleVisualizationModel(input_dims=512, output_dims=2, units=256, hidden_layer=HIDDEN_LAYER)
-model = VisModel(ENCODER_DIMS, DECODER_DIMS)
+# model = VisModel(ENCODER_DIMS, DECODER_DIMS)
+model = SingleVisualizationModel(input_dims=512, output_dims=2, units=256, hidden_layer=HIDDEN_LAYER)
+
 
 negative_sample_rate = 5
 min_dist = .1
 _a, _b = find_ab_params(1.0, min_dist)
 umap_loss_fn = UmapLoss(negative_sample_rate, DEVICE, _a, _b, repulsion_strength=1.0)
 recon_loss_fn = ReconstructionLoss(beta=1.0)
-criterion = SingleVisLoss(umap_loss_fn, recon_loss_fn, lambd=LAMBDA)
-# projector = Projector(vis_model=model, content_path=CONTENT_PATH, segments=SEGMENTS, device=DEVICE)
-projector = TimeVisProjector(vis_model=model, content_path=CONTENT_PATH, vis_model_name=VIS_MODEL_NAME, device=DEVICE)
+# criterion = SingleVisLoss(umap_loss_fn, recon_loss_fn, lambd=LAMBDA)
+smooth_loss_fn = SmoothnessLoss(margin=0.5)
+criterion = HybridLoss(umap_loss_fn, recon_loss_fn, smooth_loss_fn, lambd1=LAMBDA, lambd2=S_LAMBDA)
+
 
 optimizer = torch.optim.Adam(model.parameters(), lr=.01, weight_decay=1e-5)
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=4, gamma=.1)
 
 t0 = time.time()
-spatial_cons = kcSpatialEdgeConstructor(data_provider=data_provider, init_num=INIT_NUM, s_n_epochs=S_N_EPOCHS, b_n_epochs=B_N_EPOCHS, n_neighbors=N_NEIGHBORS, MAX_HAUSDORFF=MAX_HAUSDORFF, ALPHA=ALPHA, BETA=BETA)
-s_edge_to, s_edge_from, s_probs, feature_vectors, time_step_nums, time_step_idxs_list, knn_indices, sigmas, rhos, attention = spatial_cons.construct()
-temporal_cons = GlobalTemporalEdgeConstructor(X=feature_vectors, time_step_nums=time_step_nums, sigmas=sigmas, rhos=rhos, n_neighbors=N_NEIGHBORS, n_epochs=T_N_EPOCHS, transfer_metrix = TRANSFER_METRIX)
+###########
+ref_model = VisModel(ENCODER_DIMS, DECODER_DIMS)
+REF_PATH = "/home/yifan/dataset/resnetwithoutnoise/pairflip/cifar10/0"
+ref_save_model = torch.load("/home/yifan/dataset/resnetwithoutnoise/pairflip/cifar10/0/Model/vis.pth", map_location=torch.device("cpu"))
+ref_model.load_state_dict(ref_save_model["state_dict"])
+
+ref_provider = NormalDataProvider(REF_PATH, net, EPOCH_START, EPOCH_END, EPOCH_PERIOD, split=-1, device=DEVICE, classes=CLASSES,verbose=1)
+prev_selected = np.random.choice(np.arange(LEN), size=INIT_NUM, replace=False)
+prev_data = torch.from_numpy(ref_provider.train_representation(200)[prev_selected]).to(dtype=torch.float32)
+prev_embedding = ref_model.encoder(prev_data).detach().numpy()
+print("Resume from with {} points...".format(len(prev_embedding)))
+
+
+
+
+# prev_embedding = None
+start_point = len(SEGMENTS)-1
+c0=None
+d0=None
+spatial_cons = kcHybridSpatialEdgeConstructor(data_provider=data_provider, init_num=INIT_NUM, s_n_epochs=S_N_EPOCHS, b_n_epochs=B_N_EPOCHS, n_neighbors=N_NEIGHBORS, MAX_HAUSDORFF=MAX_HAUSDORFF, ALPHA=ALPHA, BETA=BETA, init_idxs=prev_selected, init_embeddings=prev_embedding, c0=c0, d0=d0)
+s_edge_to, s_edge_from, s_probs, feature_vectors, embedded, coefficient, time_step_nums, time_step_idxs_list, knn_indices, sigmas, rhos, attention, (c0,d0) = spatial_cons.construct()
+# spatial_cons = kcSpatialEdgeConstructor(data_provider=data_provider, init_num=INIT_NUM, s_n_epochs=S_N_EPOCHS, b_n_epochs=B_N_EPOCHS, n_neighbors=N_NEIGHBORS, MAX_HAUSDORFF=MAX_HAUSDORFF, ALPHA=ALPHA, BETA=BETA)
+# s_edge_to, s_edge_from, s_probs, feature_vectors, time_step_nums, time_step_idxs_list, knn_indices, sigmas, rhos, attention = spatial_cons.construct()
+
+temporal_cons = GlobalTemporalEdgeConstructor(X=feature_vectors, time_step_nums=time_step_nums, sigmas=sigmas, rhos=rhos, n_neighbors=N_NEIGHBORS, n_epochs=T_N_EPOCHS)
+# temporal_cons = LocalTemporalEdgeConstructor(X=feature_vectors, time_step_nums=time_step_nums, sigmas=sigmas, rhos=rhos, n_neighbors=N_NEIGHBORS, n_epochs=T_N_EPOCHS,persistent=2,time_step_idxs_list=time_step_idxs_list,knn_indices=knn_indices)
+
 t_edge_to, t_edge_from, t_probs = temporal_cons.construct()
 t1 = time.time()
 
@@ -135,7 +158,8 @@ edge_to = edge_to[eliminate_zeros]
 edge_from = edge_from[eliminate_zeros]
 probs = probs[eliminate_zeros]
 
-dataset = DataHandler(edge_to, edge_from, feature_vectors, attention)
+# dataset = DataHandler(edge_to, edge_from, feature_vectors, attention)
+dataset = HybridDataHandler(edge_to, edge_from, feature_vectors, attention, embedded, coefficient)
 n_samples = int(np.sum(S_N_EPOCHS * probs) // 1)
 # chose sampler based on the number of dataset
 if len(edge_to) > 2^24:
@@ -148,42 +172,16 @@ edge_loader = DataLoader(dataset, batch_size=1000, sampler=sampler)
 #                                                       TRAIN                                                          #
 ########################################################################################################################
 
-trainer = SingleVisTrainer(model, criterion, optimizer, lr_scheduler, edge_loader=edge_loader, DEVICE=DEVICE)
+# trainer = SingleVisTrainer(model, criterion, optimizer, lr_scheduler, edge_loader=edge_loader, DEVICE=DEVICE)
+
+trainer = HybridVisTrainer(model, criterion, optimizer, lr_scheduler,edge_loader=edge_loader, DEVICE=DEVICE)
 
 t2=time.time()
 trainer.train(PATIENT, MAX_EPOCH)
 t3 = time.time()
 
 save_dir = data_provider.model_path
-trainer.record_time(save_dir, "time_{}_{}.json".format(VIS_METHOD, VIS_MODEL_NAME), "complex_construction", t1-t0)
-trainer.record_time(save_dir, "time_{}_{}.json".format(VIS_METHOD, VIS_MODEL_NAME), "training", t3-t2)
+# trainer.record_time(save_dir, "time_{}_{}.json".format(VIS_METHOD, VIS_MODEL_NAME), "complex_construction", t1-t0)
+# trainer.record_time(save_dir, "time_{}_{}.json".format(VIS_METHOD, VIS_MODEL_NAME), "training", t3-t2)
 trainer.save(save_dir=save_dir, file_name="{}".format(VIS_MODEL_NAME))
 
-########################################################################################################################
-#                                                      VISUALIZATION                                                   #
-########################################################################################################################
-
-# from singleVis.visualizer import visualizer
-
-# vis = visualizer(data_provider, projector, 200, CLASSES)
-# save_dir = os.path.join(data_provider.content_path, "img")
-# os.makedirs(save_dir)
-
-# for i in range(EPOCH_START, EPOCH_END+1, EPOCH_PERIOD):
-#     vis.savefig(i, path=os.path.join(save_dir, "{}_{}_{}.png".format(DATASET, i, VIS_METHOD)))
-
-# ########################################################################################################################
-# #                                                       EVALUATION                                                     #
-# ########################################################################################################################
-
-# EVAL_EPOCH_DICT = {
-#     "mnist_full":[1,2,5,10,13,16,20],
-#     "fmnist_full":[1,2,6,11,25,30,36,50],
-#     "cifar10_full":[1,3,9,18,24,41,70,100,160,200]
-# }
-# eval_epochs = EVAL_EPOCH_DICT[DATASET]
-
-# evaluator = Evaluator(data_provider, projector)
-
-# for eval_epoch in eval_epochs:
-#     evaluator.save_epoch_eval(eval_epoch, 15, temporal_k=5, file_name="{}_{}".format(VIS_METHOD, EVALUATION_NAME))

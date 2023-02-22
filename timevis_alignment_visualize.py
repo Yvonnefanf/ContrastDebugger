@@ -7,7 +7,8 @@ import argparse
 
 from singleVis.data import NormalDataProvider
 from singleVis.projector import Projector
-from singleVis.SingleVisualizationModel import VisModel
+# from singleVis.SingleVisualizationModel import VisModel
+from singleVis.SingleVisualizationModel import SingleVisualizationModel
 ########################################################################################################################
 #                                                     LOAD PARAMETERS                                                  #
 ########################################################################################################################
@@ -66,10 +67,11 @@ ENCODER_DIMS = VISUALIZATION_PARAMETER["ENCODER_DIMS"]
 DECODER_DIMS = VISUALIZATION_PARAMETER["DECODER_DIMS"]
 
 
-model = VisModel(ENCODER_DIMS, DECODER_DIMS)
+# model = VisModel(ENCODER_DIMS, DECODER_DIMS)
+model = SingleVisualizationModel(input_dims=512, output_dims=2, units=256, hidden_layer=HIDDEN_LAYER)
 # define hyperparameters
-DEVICE = torch.device("cuda:{}".format(GPU_ID) if torch.cuda.is_available() else "cpu")
-
+# DEVICE = torch.device("cuda:{}".format(GPU_ID) if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cpu")
 import Model.model as subject_model
 # net = resnet18()
 net = eval("subject_model.{}()".format(NET))
@@ -81,8 +83,8 @@ projector = Projector(vis_model=model, content_path=CONTENT_PATH, segments=SEGME
 
 from singleVis.visualizer import visualizer
 vis = visualizer(data_provider, projector, 200, 'tab10')
-save_dir = os.path.join(CONTENT_PATH , "img")
+save_dir = os.path.join(CONTENT_PATH , "tarimg1121")
 os.makedirs(save_dir)
 
-for i in range(198, EPOCH_END+1, EPOCH_PERIOD):
+for i in range(195, EPOCH_END+1, EPOCH_PERIOD):
     vis.savefig(i, path=os.path.join(save_dir, "{}_{}_{}.png".format(DATASET, i, VIS_METHOD)))

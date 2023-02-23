@@ -695,7 +695,7 @@ class kcHybridSpatialEdgeConstructor(SpatialEdgeConstructor):
                     coefficient = np.zeros(len(feature_vectors))
                     coefficient[:len(self.init_embeddings)] = 1
                     embedded = np.zeros((len(feature_vectors), 2))
-                    embedded[:len(self.init_embeddings)] = self.init_embeddings
+                    embedded[:len(self.init_embeddings)] = self.init_embeddings[selected_idxs]
 
             else:
                 # every round, we need to add len(data) to edge_to(as well as edge_from) index

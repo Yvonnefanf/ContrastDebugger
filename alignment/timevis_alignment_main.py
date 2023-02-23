@@ -5,6 +5,8 @@ import time
 import numpy as np
 import argparse
 import json
+import sys
+sys.path.append("..")
 
 from torch.utils.data import DataLoader
 from torch.utils.data import WeightedRandomSampler
@@ -56,6 +58,7 @@ EPOCH_PERIOD = config["EPOCH_PERIOD"]
 TRAINING_PARAMETER = config["TRAINING"]
 NET = TRAINING_PARAMETER["NET"]
 LEN = TRAINING_PARAMETER["train_num"]
+LEN = 1000
 
 # Training parameter (visualization model)
 VISUALIZATION_PARAMETER = config["VISUALIZATION"]
@@ -100,8 +103,8 @@ if PREPROCESS:
         data_provider._estimate_boundary(LEN//10, l_bound=L_BOUND)
 
 # model = SingleVisualizationModel(input_dims=512, output_dims=2, units=256, hidden_layer=HIDDEN_LAYER)
-# model = VisModel(ENCODER_DIMS, DECODER_DIMS)
-model = SingleVisualizationModel(input_dims=512, output_dims=2, units=256, hidden_layer=HIDDEN_LAYER)
+model = VisModel(ENCODER_DIMS, DECODER_DIMS)
+# model = SingleVisualizationModel(input_dims=512, output_dims=2, units=256, hidden_layer=HIDDEN_LAYER)
 
 
 negative_sample_rate = 5
@@ -125,9 +128,11 @@ ref_save_model = torch.load("/home/yifan/dataset/clean/pairflip/cifar10/0/Model/
 ref_model.load_state_dict(ref_save_model["state_dict"])
 
 ref_provider = NormalDataProvider(REF_PATH, net, EPOCH_START, EPOCH_END, EPOCH_PERIOD, split=-1, device=DEVICE, classes=CLASSES,verbose=1)
-with open(os.path.join(REF_PATH, "selected_idxs", "selected_{}.json".format(190)), "r") as f:
-    prev_selected = json.load(f)
-prev_data = torch.from_numpy(ref_provider.train_representation(190)).to(dtype=torch.float32)
+# with open(os.path.join(REF_PATH, "selected_idxs", "selected_{}.json".format(190)), "r") as f:
+#     prev_selected = json.load(f)
+print('lll', LEN)
+prev_selected = np.random.choice(np.arange(LEN), size=INIT_NUM, replace=False)
+prev_data = torch.from_numpy(ref_provider.train_representation(200)).to(dtype=torch.float32)
 prev_embedding = ref_model.encoder(prev_data).detach().numpy()
 print("Resume from with {} points...".format(len(prev_embedding[prev_selected])))
 
@@ -181,7 +186,6 @@ trainer.train(PATIENT, MAX_EPOCH)
 t3 = time.time()
 
 save_dir = data_provider.model_path
-# trainer.record_time(save_dir, "time_{}_{}.json".format(VIS_METHOD, VIS_MODEL_NAME), "complex_construction", t1-t0)
-# trainer.record_time(save_dir, "time_{}_{}.json".format(VIS_METHOD, VIS_MODEL_NAME), "training", t3-t2)
+
 trainer.save(save_dir=save_dir, file_name="{}".format(VIS_MODEL_NAME))
 

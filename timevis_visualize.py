@@ -84,5 +84,5 @@ vis = visualizer(data_provider, projector, 200, 'tab10')
 save_dir = os.path.join(CONTENT_PATH , "img")
 os.makedirs(save_dir)
 
-for i in range(198, EPOCH_END+1, EPOCH_PERIOD):
+for i in range(EPOCH_START, EPOCH_END+1, EPOCH_PERIOD):
     vis.savefig(i, path=os.path.join(save_dir, "{}_{}_{}.png".format(DATASET, i, VIS_METHOD)))

@@ -196,32 +196,42 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
         cka_loss = 1 - torch.mean(K_xy) / torch.sqrt(K_xx * K_yy)
         return cka_loss
     
+    def kernel_HSIC_cka_loss_consider_init(self, X, Y, Z, gamma=None, alpha1 = 100000, alpha2=0.01):
+        K_xx = self.kernel_HSIC(X, X, gamma)
+        K_yy = self.kernel_HSIC(Y, Y, gamma)
+        K_zz = self.kernel_HSIC(Z, Z, gamma)
+        K_xy = self.kernel_HSIC(X, Y, gamma)
+        K_xz = self.kernel_HSIC(X, Z, gamma)
+        K_yz = self.kernel_HSIC(Y, Z, gamma)
+        cka_loss1 = 1 - torch.mean(K_xy) / torch.sqrt(K_xx * K_yy)
+        cka_loss2 = 1 - torch.mean(K_yz) / torch.sqrt(K_yy * K_zz)
+        loss = alpha1 * cka_loss1 + alpha2 * cka_loss2
+        return loss
+
+    
+    
     
     def generate_representation_by_cka(self,mes_val_for_diff, mes_val_for_same,epoch):
         absolute_alignment_indicates,predict_label_diff_indicates,predict_confidence_Diff_indicates = self.subsetClassify(mes_val_for_diff, mes_val_for_same)
-
         diff_combine_same = np.concatenate((absolute_alignment_indicates, predict_label_diff_indicates), axis=0)
-        ref_diff = self.ref_train_data[predict_label_diff_indicates]
-        ref_same = self.ref_train_data[absolute_alignment_indicates]
         tar = self.tar_train_data[diff_combine_same]
         ref = self.ref_train_data[diff_combine_same]
         x = torch.Tensor(tar)
-        y1 = torch.randn(ref_diff.shape[0], ref_diff.shape[1], requires_grad = True)
-        
-       
-        y = torch.cat([torch.Tensor(ref_same),y1], 0)
-        
-
-        x = torch.Tensor(self.tar_train_data[predict_label_diff_indicates])
-        y = torch.randn(ref_diff.shape[0], ref_diff.shape[1], requires_grad = True)
+        z = torch.Tensor(ref)
+        y = torch.from_numpy(ref)
+        y.requires_grad = True
+        need_update_arr = np.arange(51,len(diff_combine_same))
+        mask = torch.zeros_like(y, dtype=torch.bool)
+        mask[need_update_arr, :] = True
         optimizer = optim.Adam([y], lr=1e-2)
-
-        # print(y.shape(),tar.shape(),result.shape())
+        # params_to_optimize = torch.nn.Parameter(y[mask])
+        # optimizer = optim.Adagrad([params_to_optimize], lr=0.01)
+        x = torch.Tensor(tar)
 
         for i in range(epoch):
-            # y_features = model(y)
-            loss = self.kernel_HSIC_cka_loss(x,y)
-
+            # loss = self.kernel_HSIC_cka_loss(x,y)
+            loss = self.kernel_HSIC_cka_loss_consider_init(z,y,x)
+     
 
             optimizer.zero_grad()
             loss.backward()
@@ -229,9 +239,7 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
 
             # Print the loss value every 100 iterations
             if i % 9 == 0:
-                print(f"Iteration {i}: CKA loss = {loss.item():.4f}")
-        # cka_value = self.rbf_kernel_cka(x, y_features, sigma=1.0)
-        # print(f"Final RBF kernel CKA value: {cka_value.item()}")
+                print(f"Iteration {i}: CKA loss = {loss.item():.10f}")
         
         return y.detach().numpy()
     

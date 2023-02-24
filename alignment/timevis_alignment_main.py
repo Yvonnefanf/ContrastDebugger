@@ -24,6 +24,8 @@ from singleVis.spatial_edge_constructor import kcSpatialEdgeConstructor
 ##### use alignment_tempory
 from alignment.spatial_edge_constructor import  kcHybridSpatialEdgeConstructor
 from alignment.temporal_edge_constructor import  GlobalTemporalEdgeConstructor, LocalTemporalEdgeConstructor
+from alignment.ReferenceGenerator import ReferenceGenerator
+
 ########################################################################################################################
 #                                                    VISUALIZATION SETTING                                             #
 ########################################################################################################################
@@ -33,10 +35,11 @@ VIS_METHOD= "TimeVis"
 ########################################################################################################################
 parser = argparse.ArgumentParser(description='Process hyperparameters...')
 parser.add_argument('--content_path', type=str)
+parser.add_argument('--reference_path', type=str)
 args = parser.parse_args()
 
 CONTENT_PATH = args.content_path
-REF_PATH = '/home/yifan/dataset/resnetwithoutnoise/pairflip/cifar10/0'
+REF_PATH = args.reference_path
 sys.path.append(CONTENT_PATH)
 from config import config
 
@@ -50,7 +53,6 @@ DATASET = config["DATASET"]
 PREPROCESS = config["VISUALIZATION"]["PREPROCESS"]
 GPU_ID = config["GPU"]
 EPOCH_START = config["EPOCH_START"]
-
 EPOCH_END = config["EPOCH_END"]
 EPOCH_PERIOD = config["EPOCH_PERIOD"]
 
@@ -58,8 +60,6 @@ EPOCH_PERIOD = config["EPOCH_PERIOD"]
 TRAINING_PARAMETER = config["TRAINING"]
 NET = TRAINING_PARAMETER["NET"]
 LEN = TRAINING_PARAMETER["train_num"]
-LEN = 1000
-
 # Training parameter (visualization model)
 VISUALIZATION_PARAMETER = config["VISUALIZATION"]
 LAMBDA = VISUALIZATION_PARAMETER["LAMBDA"]
@@ -78,6 +78,7 @@ N_NEIGHBORS = VISUALIZATION_PARAMETER["N_NEIGHBORS"]
 PATIENT = VISUALIZATION_PARAMETER["PATIENT"]
 MAX_EPOCH = VISUALIZATION_PARAMETER["MAX_EPOCH"]
 S_LAMBDA = VISUALIZATION_PARAMETER["S_LAMBDA"]
+S_LAMBDA = 10
 
 VIS_MODEL_NAME = VISUALIZATION_PARAMETER["VIS_MODEL_NAME"]
 
@@ -113,7 +114,7 @@ _a, _b = find_ab_params(1.0, min_dist)
 umap_loss_fn = UmapLoss(negative_sample_rate, DEVICE, _a, _b, repulsion_strength=1.0)
 recon_loss_fn = ReconstructionLoss(beta=1.0)
 # criterion = SingleVisLoss(umap_loss_fn, recon_loss_fn, lambd=LAMBDA)
-smooth_loss_fn = SmoothnessLoss(margin=0.5)
+smooth_loss_fn = SmoothnessLoss(margin=0.0)
 criterion = HybridLoss(umap_loss_fn, recon_loss_fn, smooth_loss_fn, lambd1=LAMBDA, lambd2=S_LAMBDA)
 
 
@@ -123,33 +124,33 @@ lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=4, gamma=.1)
 t0 = time.time()
 ###########
 ref_model = VisModel(ENCODER_DIMS, DECODER_DIMS)
-REF_PATH = "/home/yifan/dataset/clean/pairflip/cifar10/0"
-ref_save_model = torch.load("/home/yifan/dataset/clean/pairflip/cifar10/0/Model/vis.pth", map_location=torch.device("cpu"))
+##### load reference model
+ref_save_model = torch.load(os.path.join(REF_PATH, "Model", "vis.pth"), map_location=torch.device("cpu"))
 ref_model.load_state_dict(ref_save_model["state_dict"])
-
 ref_provider = NormalDataProvider(REF_PATH, net, EPOCH_START, EPOCH_END, EPOCH_PERIOD, split=-1, device=DEVICE, classes=CLASSES,verbose=1)
-# with open(os.path.join(REF_PATH, "selected_idxs", "selected_{}.json".format(190)), "r") as f:
+#### get absolute alignment indicates
+ReferenceGenerator = ReferenceGenerator(ref_provider=ref_provider, tar_provider=data_provider,REF_EPOCH=200,TAR_EPOCH=200)
+absolute_alignment_indicates,predict_label_diff_indicates,predict_confidence_Diff_indicates = ReferenceGenerator.subsetClassify(35, 1)
+
+prev_selected = absolute_alignment_indicates
+# with open(os.path.join(REF_PATH, "selected_idxs", "selected_{}.json".format(200)), "r") as f:
 #     prev_selected = json.load(f)
-print('lll', LEN)
-prev_selected = np.random.choice(np.arange(LEN), size=INIT_NUM, replace=False)
-prev_data = torch.from_numpy(ref_provider.train_representation(200)).to(dtype=torch.float32)
+prev_data = torch.from_numpy(ref_provider.train_representation(200)[prev_selected]).to(dtype=torch.float32)
 prev_embedding = ref_model.encoder(prev_data).detach().numpy()
-print("Resume from with {} points...".format(len(prev_embedding[prev_selected])))
+print("Resume from with {} points...".format(len(prev_embedding)))
 
-
-
-
-# prev_embedding = None
 start_point = len(SEGMENTS)-1
-c0=None
-d0=None
+# c0=None
+# d0=None
+
+with open(os.path.join(REF_PATH, "selected_idxs", "baseline.json".format(200)), "r") as f:
+    c0, d0 = json.load(f)
 spatial_cons = kcHybridSpatialEdgeConstructor(data_provider=data_provider, init_num=INIT_NUM, s_n_epochs=S_N_EPOCHS, b_n_epochs=B_N_EPOCHS, n_neighbors=N_NEIGHBORS, MAX_HAUSDORFF=MAX_HAUSDORFF, ALPHA=ALPHA, BETA=BETA, init_idxs=prev_selected, init_embeddings=prev_embedding, c0=c0, d0=d0)
 s_edge_to, s_edge_from, s_probs, feature_vectors, embedded, coefficient, time_step_nums, time_step_idxs_list, knn_indices, sigmas, rhos, attention, (c0,d0) = spatial_cons.construct()
-# spatial_cons = kcSpatialEdgeConstructor(data_provider=data_provider, init_num=INIT_NUM, s_n_epochs=S_N_EPOCHS, b_n_epochs=B_N_EPOCHS, n_neighbors=N_NEIGHBORS, MAX_HAUSDORFF=MAX_HAUSDORFF, ALPHA=ALPHA, BETA=BETA)
-# s_edge_to, s_edge_from, s_probs, feature_vectors, time_step_nums, time_step_idxs_list, knn_indices, sigmas, rhos, attention = spatial_cons.construct()
+
 
 temporal_cons = GlobalTemporalEdgeConstructor(X=feature_vectors, time_step_nums=time_step_nums, sigmas=sigmas, rhos=rhos, n_neighbors=N_NEIGHBORS, n_epochs=T_N_EPOCHS)
-# temporal_cons = LocalTemporalEdgeConstructor(X=feature_vectors, time_step_nums=time_step_nums, sigmas=sigmas, rhos=rhos, n_neighbors=N_NEIGHBORS, n_epochs=T_N_EPOCHS,persistent=2,time_step_idxs_list=time_step_idxs_list,knn_indices=knn_indices)
+
 
 t_edge_to, t_edge_from, t_probs = temporal_cons.construct()
 t1 = time.time()

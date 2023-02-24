@@ -39,7 +39,6 @@ class CKA(object):
         hsic = self.linear_HSIC(X, Y)
         var1 = np.sqrt(self.linear_HSIC(X, X))
         var2 = np.sqrt(self.linear_HSIC(Y, Y))
-
         return hsic / (var1 * var2)
 
     def kernel_CKA(self, X, Y, sigma=None):

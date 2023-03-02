@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 import torch
 import torch.optim as optim
 import torch.nn as nn
+import os
 
 import sys
 sys.path.append("..")
@@ -11,6 +12,10 @@ import numpy as np
 from scipy.special import softmax
 from CKA_utils.CKA import CKA, CudaCKA
 import math
+from singleVis.utils import *
+from alignment.CKA_utils import *
+from alignment.utils import *
+import torch.nn.functional as F
 
 # Define the deep neural network model
 class Model(nn.Module):
@@ -25,25 +30,6 @@ class Model(nn.Module):
         return x
     
 
-def EMAE(Y, y, a=1.5):
-    """
-    param：
-        Y: 原始序列（假定波动较大）
-        y: 拟合序列（假定波动较小）
-        a: 指数的自变量，≥1，该值越大，则两序列间的残差（特别是残差的离群值）对EMAE返回值影响的强化作用越明显；
-        当a=1时，EMAE化简为MAE。
-    return：
-        指数MAE值，该值的大小与两条序列间平均偏差程度成正比，该值越大，平均偏差程度越大；
-        且两序列间的残差（特别是残差的离群值）对EMAE的影响比MAE大。
-    """
-
-    Y, y = np.array(Y), np.array(y)
-    Y[Y < 0] = 0  # 使指数的底数≥1，则所有指数均为递增函数
-    y[y < 0] = 0
-    emae = sum(abs((Y+1)**a - (y+1)**a)) / len(Y)
-
-    return emae
-
 
 class ReferenceGeneratorAbstractClass(ABC):
     @abstractmethod
@@ -53,7 +39,7 @@ class ReferenceGeneratorAbstractClass(ABC):
 class ReferenceGenerator(ReferenceGeneratorAbstractClass):
     '''generate the reference based on CCA
     '''
-    def __init__(self, ref_provider, tar_provider, REF_EPOCH, TAR_EPOCH) -> None:
+    def __init__(self, ref_provider, tar_provider, REF_EPOCH, TAR_EPOCH,model,DEVICE) -> None:
         """Init parameters for spatial edge constructor
 
         Parameters
@@ -72,6 +58,9 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
         self.tar_provider = tar_provider
         self.REF_EPOCH = REF_EPOCH
         self.TAR_EPOCH = TAR_EPOCH
+        self.model = model
+        self.DEVICE = DEVICE
+        self.split=-1
         ### reference train data and target train data
         self.ref_train_data = self.ref_provider.train_representation(REF_EPOCH).squeeze()
         self.tar_train_data = self.tar_provider.train_representation(TAR_EPOCH).squeeze()
@@ -86,7 +75,43 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
         self.tar_conf_score = np.amax(softmax(self.tar_prediction, axis=1), axis=1)
 
 
+    
+    def prediction_function(self, Epoch):
+        #TODO
+        tar_model_path = self.tar_provider.content_path
+        model_location = os.path.join(tar_model_path, "Model", "Epoch_{:d}".format(Epoch), "subject_model.pth")
+        self.model.load_state_dict(torch.load(model_location, map_location=torch.device("cpu")))
+        self.model.to(self.DEVICE)
+        self.model.eval()
 
+        model = torch.nn.Sequential(*(list(self.model.children())[self.split:]))
+        model.to(self.DEVICE)
+        model.eval()
+        return model
+    
+    def get_pred(self, epoch, data):
+        '''
+        get the prediction score for data in epoch_id
+        :param data: numpy.ndarray
+        :param epoch_id:
+        :return: pred, numpy.ndarray
+        '''
+        prediction_func = self.prediction_function(epoch)
+
+        # data = torch.from_numpy(data)
+        data = data.to(self.DEVICE)
+        pred = batch_run(prediction_func, data)
+        return pred.squeeze()
+    
+    def pred_loss_function(self,epoch, adjusted_input,indicates):
+        target_output = self.tar_prediction[indicates]
+        output = self.get_pred(epoch, adjusted_input)
+        loss_output = F.mse_loss(torch.tensor(output), torch.tensor(target_output))
+        loss_Rep = F.mse_loss(adjusted_input, torch.tensor(self.tar_provider.train_representation(epoch)[indicates]))
+        loss = loss_output + loss_Rep
+        return loss
+    
+    
     def subsetClassify(self, mes_val_for_diff, mes_val_for_same):
         high_distance_indicates = []
         low_distance_indicates = []
@@ -112,97 +137,22 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
         print('absolute alignment indicates number:',len(absolute_alignment_indicates),'label diff indicates number:',len(predict_label_diff_indicates),'confidence diff indicates number:',len(predict_confidence_diff_indicates))
         return absolute_alignment_indicates,predict_label_diff_indicates,predict_confidence_diff_indicates
         
-
-    def CKAcaculator(self, X, Y):
-        np_cka = CKA()
-        value = np_cka.kernel_CKA(X,Y)
-        return value
-    
-    # Define the CCA loss function
-    def cca_loss(self, x, y):
-        # Normalize the input data
-        x_normalized = torch.nn.functional.normalize(x, dim=0)
-        y_normalized = torch.nn.functional.normalize(y, dim=0)
-    
-        # Compute the covariance matrix of the normalized input data
-        cov = torch.matmul(x_normalized.T, y_normalized)
-    
-        # Compute the singular value decomposition of the covariance matrix
-        u, s, v = torch.svd(cov)
-    
-        # Compute the canonical correlation coefficients
-        cca_coef = s[:min(x.shape[1], y.shape[1])]
-    
-        # Normalize the CCA coefficients
-        cca_coef_norm = cca_coef / torch.max(cca_coef)
-    
-        # Compute the loss function
-        loss = 1 - cca_coef_norm.sum()
-    
-        return loss
-    
-    # Define the CKA loss function
-    def cka_loss(self, x, y):
-        # Compute the Gram matrix of the input data
-        x_gram = torch.matmul(x, x.t())
-        y_gram = torch.matmul(y, y.t())
-    
-        # Compute the normalization factors for the Gram matrices
-        x_norm = torch.norm(x_gram, p='fro')
-        y_norm = torch.norm(y_gram, p='fro')
-    
-        # Compute the centered Gram matrix of the input data
-        x_centered = x_gram - torch.mean(x_gram, dim=1, keepdim=True) - torch.mean(x_gram, dim=0, keepdim=True) + torch.mean(x_gram)
-        y_centered = y_gram - torch.mean(y_gram, dim=1, keepdim=True) - torch.mean(y_gram, dim=0, keepdim=True) + torch.mean(y_gram)
-    
-        # Compute the normalization factors for the centered Gram matrices
-        x_centered_norm = torch.norm(x_centered, p='fro')
-        y_centered_norm = torch.norm(y_centered, p='fro')
-    
-        # Compute the centered kernel alignment between the input data
-        cka = torch.trace(torch.matmul(x_centered, y_centered)) / (x_centered_norm * y_centered_norm)
-    
-        # Compute the loss function
-        loss = 1 - cka
-    
-        return loss
- 
-    def rbf(self, X, sigma=None):
-        # X = torch.tensor(X)
-        GX = torch.matmul(X, X.T)
-        KX = torch.diag(GX) - GX + (torch.diag(GX) - GX).T
-        if sigma is None:
-            mdist = torch.median(KX[KX != 0])
-            sigma = torch.sqrt(mdist)
-        KX *= - 0.5 / (sigma * sigma)
-        KX = torch.exp(KX)
-        return KX
-    
-    def kernel_HSIC(self, X, Y, gamma):
-        n1 = X.shape[0]
-        n2 = Y.shape[0]
-        H1 = torch.eye(n1) - torch.ones(n1, n1) / n1
-        H2 = torch.eye(n2) - torch.ones(n2, n2) / n2
-        K1 = torch.matmul(torch.matmul(H1, self.rbf(X, gamma)), H1)
-        K2 = torch.matmul(torch.matmul(H2, self.rbf(Y, gamma)), H2)
-        hsic = torch.trace(torch.matmul(K1, K2))
-        return hsic
     
     def kernel_HSIC_cka_loss(self, X, Y, gamma=None):
-        K_xx = self.kernel_HSIC(X, X, gamma)
-        K_yy = self.kernel_HSIC(Y, Y, gamma)
+        K_xx = kernel_HSIC(X, X, gamma)
+        K_yy = kernel_HSIC(Y, Y, gamma)
         # K_xy = rbf_kernel(X, Y, 1e-2) 
-        K_xy = self.kernel_HSIC(X, Y, gamma)   
+        K_xy = kernel_HSIC(X, Y, gamma)   
         cka_loss = 1 - torch.mean(K_xy) / torch.sqrt(K_xx * K_yy)
         return cka_loss
     
     def kernel_HSIC_cka_loss_consider_init(self, X, Y, Z, gamma=None, alpha1 = 100000, alpha2=0.01):
-        K_xx = self.kernel_HSIC(X, X, gamma)
-        K_yy = self.kernel_HSIC(Y, Y, gamma)
-        K_zz = self.kernel_HSIC(Z, Z, gamma)
-        K_xy = self.kernel_HSIC(X, Y, gamma)
-        K_xz = self.kernel_HSIC(X, Z, gamma)
-        K_yz = self.kernel_HSIC(Y, Z, gamma)
+        K_xx = kernel_HSIC(X, X, gamma)
+        K_yy = kernel_HSIC(Y, Y, gamma)
+        K_zz = kernel_HSIC(Z, Z, gamma)
+        K_xy = kernel_HSIC(X, Y, gamma)
+        K_xz = kernel_HSIC(X, Z, gamma)
+        K_yz = kernel_HSIC(Y, Z, gamma)
         cka_loss1 = 1 - torch.mean(K_xy) / torch.sqrt(K_xx * K_yy)
         cka_loss2 = 1 - torch.mean(K_yz) / torch.sqrt(K_yy * K_zz)
         loss = alpha1 * cka_loss1 + alpha2 * cka_loss2
@@ -214,15 +164,15 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
     def generate_representation_by_cka(self,mes_val_for_diff, mes_val_for_same,epoch):
         absolute_alignment_indicates,predict_label_diff_indicates,predict_confidence_Diff_indicates = self.subsetClassify(mes_val_for_diff, mes_val_for_same)
         diff_combine_same = np.concatenate((absolute_alignment_indicates, predict_label_diff_indicates), axis=0)
-        tar = self.tar_train_data[diff_combine_same]
-        ref = self.ref_train_data[diff_combine_same]
+        tar = self.tar_train_data[predict_label_diff_indicates]
+        ref = self.ref_train_data[predict_label_diff_indicates]
         x = torch.Tensor(tar)
         z = torch.Tensor(ref)
         y = torch.from_numpy(ref)
         y.requires_grad = True
-        need_update_arr = np.arange(51,len(diff_combine_same))
+        # need_update_arr = np.arange(51,len(diff_combine_same))
         mask = torch.zeros_like(y, dtype=torch.bool)
-        mask[need_update_arr, :] = True
+        # mask[need_update_arr, :] = True
         optimizer = optim.Adam([y], lr=1e-2)
         # params_to_optimize = torch.nn.Parameter(y[mask])
         # optimizer = optim.Adagrad([params_to_optimize], lr=0.01)
@@ -231,15 +181,21 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
         for i in range(epoch):
             # loss = self.kernel_HSIC_cka_loss(x,y)
             loss = self.kernel_HSIC_cka_loss_consider_init(z,y,x)
+
+            loss2 = self.pred_loss_function(self.TAR_EPOCH, y, predict_label_diff_indicates)
      
 
             optimizer.zero_grad()
-            loss.backward()
+            # loss = loss
+            combined_loss = 100 * loss + loss2
+            # loss.backward()
+            combined_loss.backward()
             optimizer.step()
 
             # Print the loss value every 100 iterations
             if i % 9 == 0:
                 print(f"Iteration {i}: CKA loss = {loss.item():.10f}")
+                print(f"Iteration {i}: prediction loss = {loss2.item():.10f}")
         
         return y.detach().numpy()
     

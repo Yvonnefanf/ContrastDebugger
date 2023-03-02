@@ -78,7 +78,7 @@ N_NEIGHBORS = VISUALIZATION_PARAMETER["N_NEIGHBORS"]
 PATIENT = VISUALIZATION_PARAMETER["PATIENT"]
 MAX_EPOCH = VISUALIZATION_PARAMETER["MAX_EPOCH"]
 S_LAMBDA = VISUALIZATION_PARAMETER["S_LAMBDA"]
-S_LAMBDA = 10
+S_LAMBDA = 100
 
 VIS_MODEL_NAME = VISUALIZATION_PARAMETER["VIS_MODEL_NAME"]
 
@@ -114,7 +114,7 @@ _a, _b = find_ab_params(1.0, min_dist)
 umap_loss_fn = UmapLoss(negative_sample_rate, DEVICE, _a, _b, repulsion_strength=1.0)
 recon_loss_fn = ReconstructionLoss(beta=1.0)
 # criterion = SingleVisLoss(umap_loss_fn, recon_loss_fn, lambd=LAMBDA)
-smooth_loss_fn = SmoothnessLoss(margin=0.0)
+smooth_loss_fn = SmoothnessLoss(margin=0.5)
 criterion = HybridLoss(umap_loss_fn, recon_loss_fn, smooth_loss_fn, lambd1=LAMBDA, lambd2=S_LAMBDA)
 
 

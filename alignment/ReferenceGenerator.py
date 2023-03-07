@@ -166,7 +166,7 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
     def generate_representation_by_cka(self,mes_val_for_diff, mes_val_for_same,epoch):
         absolute_alignment_indicates,predict_label_diff_indicates,predict_confidence_Diff_indicates,high_distance_indicates = self.subsetClassify(mes_val_for_diff, mes_val_for_same)
         diff_combine_same = np.concatenate((absolute_alignment_indicates, predict_label_diff_indicates), axis=0)
-        indicates = high_distance_indicates
+        indicates = predict_label_diff_indicates
         tar = self.tar_train_data[indicates]
         ref = self.ref_train_data[indicates]
         x = torch.Tensor(tar)
@@ -201,6 +201,7 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
                 print(f"Iteration {i}: prediction loss = {loss2.item():.10f}")
         
         return y.detach().numpy()
+    
 
     
     def neibour_graph_build(self, train_data, n_neighbors):

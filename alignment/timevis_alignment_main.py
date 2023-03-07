@@ -78,7 +78,7 @@ N_NEIGHBORS = VISUALIZATION_PARAMETER["N_NEIGHBORS"]
 PATIENT = VISUALIZATION_PARAMETER["PATIENT"]
 MAX_EPOCH = VISUALIZATION_PARAMETER["MAX_EPOCH"]
 S_LAMBDA = VISUALIZATION_PARAMETER["S_LAMBDA"]
-S_LAMBDA = 100
+S_LAMBDA = 30
 
 VIS_MODEL_NAME = VISUALIZATION_PARAMETER["VIS_MODEL_NAME"]
 
@@ -129,8 +129,8 @@ ref_save_model = torch.load(os.path.join(REF_PATH, "Model", "vis.pth"), map_loca
 ref_model.load_state_dict(ref_save_model["state_dict"])
 ref_provider = NormalDataProvider(REF_PATH, net, EPOCH_START, EPOCH_END, EPOCH_PERIOD, split=-1, device=DEVICE, classes=CLASSES,verbose=1)
 #### get absolute alignment indicates
-ReferenceGenerator = ReferenceGenerator(ref_provider=ref_provider, tar_provider=data_provider,REF_EPOCH=200,TAR_EPOCH=200)
-absolute_alignment_indicates,predict_label_diff_indicates,predict_confidence_Diff_indicates = ReferenceGenerator.subsetClassify(35, 1)
+ReferenceGenerator = ReferenceGenerator(ref_provider=ref_provider, tar_provider=data_provider,REF_EPOCH=200,TAR_EPOCH=200, model=net, DEVICE=DEVICE)
+absolute_alignment_indicates,predict_label_diff_indicates,predict_confidence_Diff_indicates,highdistance_indicates = ReferenceGenerator.subsetClassify(20, 3)
 
 prev_selected = absolute_alignment_indicates
 # with open(os.path.join(REF_PATH, "selected_idxs", "selected_{}.json".format(200)), "r") as f:

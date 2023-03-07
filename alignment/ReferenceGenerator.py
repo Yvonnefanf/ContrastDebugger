@@ -10,7 +10,9 @@ import sys
 sys.path.append("..")
 import numpy as np
 from scipy.special import softmax
-from CKA_utils.CKA import CKA, CudaCKA
+
+from pynndescent import NNDescent
+
 import math
 from singleVis.utils import *
 from alignment.CKA_utils import *
@@ -134,8 +136,8 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
             else:
                 predict_label_diff_indicates.append(i)
 
-        print('absolute alignment indicates number:',len(absolute_alignment_indicates),'label diff indicates number:',len(predict_label_diff_indicates),'confidence diff indicates number:',len(predict_confidence_diff_indicates))
-        return absolute_alignment_indicates,predict_label_diff_indicates,predict_confidence_diff_indicates
+        print('absolute alignment indicates number:',len(absolute_alignment_indicates),'label diff indicates number:',len(predict_label_diff_indicates),'confidence diff indicates number:',len(predict_confidence_diff_indicates),"high distance number:",len(high_distance_indicates))
+        return absolute_alignment_indicates,predict_label_diff_indicates,predict_confidence_diff_indicates,high_distance_indicates
         
     
     def kernel_HSIC_cka_loss(self, X, Y, gamma=None):
@@ -162,10 +164,11 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
     
     
     def generate_representation_by_cka(self,mes_val_for_diff, mes_val_for_same,epoch):
-        absolute_alignment_indicates,predict_label_diff_indicates,predict_confidence_Diff_indicates = self.subsetClassify(mes_val_for_diff, mes_val_for_same)
+        absolute_alignment_indicates,predict_label_diff_indicates,predict_confidence_Diff_indicates,high_distance_indicates = self.subsetClassify(mes_val_for_diff, mes_val_for_same)
         diff_combine_same = np.concatenate((absolute_alignment_indicates, predict_label_diff_indicates), axis=0)
-        tar = self.tar_train_data[predict_label_diff_indicates]
-        ref = self.ref_train_data[predict_label_diff_indicates]
+        indicates = high_distance_indicates
+        tar = self.tar_train_data[indicates]
+        ref = self.ref_train_data[indicates]
         x = torch.Tensor(tar)
         z = torch.Tensor(ref)
         y = torch.from_numpy(ref)
@@ -182,7 +185,7 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
             # loss = self.kernel_HSIC_cka_loss(x,y)
             loss = self.kernel_HSIC_cka_loss_consider_init(z,y,x)
 
-            loss2 = self.pred_loss_function(self.TAR_EPOCH, y, predict_label_diff_indicates)
+            loss2 = self.pred_loss_function(self.TAR_EPOCH, y, indicates)
      
 
             optimizer.zero_grad()
@@ -198,6 +201,31 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
                 print(f"Iteration {i}: prediction loss = {loss2.item():.10f}")
         
         return y.detach().numpy()
+
+    
+    def neibour_graph_build(self, train_data, n_neighbors):
+        n_trees = min(64, 5 + int(round((train_data.shape[0]) ** 0.5 / 20.0)))
+        # max number of nearest neighbor iters to perform
+        n_iters = max(5, int(round(np.log2(train_data.shape[0]))))
+        # distance metric
+        metric = "euclidean"
+        # get nearest neighbors
+        nnd = NNDescent(
+            train_data,
+            n_neighbors=n_neighbors,
+            metric=metric,
+            n_trees=n_trees,
+            n_iters=n_iters,
+            max_candidates=60,
+            verbose=True
+        )
+        knn_indices, knn_dists = nnd.neighbor_graph
+
+        return knn_indices, knn_dists
+
+    
+        
+
     
 
 

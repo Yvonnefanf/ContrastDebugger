@@ -13,11 +13,13 @@ class SequenceAlignmentAbstractClass(ABC):
         pass
 
 class SequenceAlignment(SequenceAlignmentAbstractClass):
-    def __init__(self, ref_data_provider, tar_data_provider,ref_EPOCH, tar_EPOCH):
+    def __init__(self, ref_data_provider, tar_data_provider,ref_MAX_EPOCH, tar_MAx_EPOCH):
         self.ref_data_provider = ref_data_provider
         self.tar_data_provider = tar_data_provider
-        self.ref_EPOCH = ref_EPOCH
-        self.tar_EPOCH = tar_EPOCH
+        self.ref_MAX_EPOCH = ref_MAX_EPOCH
+        self.tar_MAx_EPOCH = tar_MAx_EPOCH
+    
+
 
     def get_alignment_list_useGPU(self):
         device = torch.device('cuda:1')

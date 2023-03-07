@@ -114,7 +114,7 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
         return loss
     
     
-    def subsetClassify(self, mes_val_for_diff, mes_val_for_same):
+    def subsetClassify(self, mes_val_for_diff, mes_val_for_same, conf_val_for_diff=0.3,conf_val_for_same=0.2 ):
         high_distance_indicates = []
         low_distance_indicates = []
         absolute_alignment_indicates = []
@@ -129,9 +129,9 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
                 low_distance_indicates.append(i)
         for i in range(len(self.ref_prediction)):
             if self.tar_prediction_argmax[i] == self.ref_prediction_argmax[i]:
-                if math.fabs(self.ref_conf_score[i] - self.tar_conf_score[i]) < 0.1 and  (i in low_distance_indicates):
+                if math.fabs(self.ref_conf_score[i] - self.tar_conf_score[i]) < conf_val_for_same and  (i in low_distance_indicates):
                     absolute_alignment_indicates.append(i)
-                elif math.fabs(self.ref_conf_score[i] - self.tar_conf_score[i]) > 0.3:
+                elif math.fabs(self.ref_conf_score[i] - self.tar_conf_score[i]) > conf_val_for_diff:
                     predict_confidence_diff_indicates.append(i)
             else:
                 predict_label_diff_indicates.append(i)

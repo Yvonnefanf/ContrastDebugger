@@ -1,3 +1,4 @@
+\
 import torch
 import sys
 import os
@@ -16,7 +17,7 @@ from singleVis.SingleVisualizationModel import VisModel
 parser = argparse.ArgumentParser(description='Process hyperparameters...')
 parser.add_argument('--content_path', type=str)
 args = parser.parse_args()
-
+sys.path.append("/home/yifan/experiments/lr_1e-3")
 CONTENT_PATH = args.content_path
 sys.path.append(CONTENT_PATH)
 from config import config
@@ -84,8 +85,8 @@ projector = Projector(vis_model=model, content_path=CONTENT_PATH, segments=SEGME
 
 from singleVis.visualizer import visualizer
 vis = visualizer(data_provider, projector, 200, 'tab10')
-save_dir = os.path.join(CONTENT_PATH , "tarimg1121")
+save_dir = os.path.join(CONTENT_PATH , "tarimg1122")
 os.makedirs(save_dir)
 
-for i in range(EPOCH_START, EPOCH_END+1, EPOCH_PERIOD):
+for i in range(150, EPOCH_END+1, 1):
     vis.savefig(i, path=os.path.join(save_dir, "{}_{}_{}.png".format(DATASET, i, VIS_METHOD)))

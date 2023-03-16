@@ -8,8 +8,9 @@ import os
 import json
 
 class DataInit():
-    def __init__(self, content_path, cur_epoch):
+    def __init__(self, config_path, content_path, cur_epoch):
         self.content_path = content_path
+        self.config_path = config_path
         self.cur_epoch = cur_epoch
 
     def get_conf(self, predction):
@@ -18,8 +19,9 @@ class DataInit():
 
     def getData(self):
         sys.path.append(self.content_path)
+        sys.path.append(self.config_path)
 
-        with open(os.path.join(self.content_path,'config.json'), 'r') as f:
+        with open(os.path.join(self.config_path,'config.json'), 'r') as f:
             config = json.load(f)
         ####### parameter ######
         TRAINING_PARAMETER = config["TRAINING"]

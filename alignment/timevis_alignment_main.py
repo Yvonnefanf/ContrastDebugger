@@ -25,6 +25,7 @@ from singleVis.spatial_edge_constructor import kcSpatialEdgeConstructor
 from alignment.spatial_edge_constructor import  kcHybridSpatialEdgeConstructor
 from alignment.temporal_edge_constructor import  GlobalTemporalEdgeConstructor, LocalTemporalEdgeConstructor
 from alignment.ReferenceGenerator import ReferenceGenerator
+from alignment.data_preprocess import DataInit
 
 ########################################################################################################################
 #                                                    VISUALIZATION SETTING                                             #
@@ -41,6 +42,7 @@ args = parser.parse_args()
 CONTENT_PATH = args.content_path
 REF_PATH = args.reference_path
 sys.path.append(CONTENT_PATH)
+sys.path.append("/home/yifan/experiments/lr_1e-3")
 from config import config
 
 # record output information
@@ -123,14 +125,22 @@ lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=4, gamma=.1)
 
 t0 = time.time()
 ###########
+
+ref_datainit = DataInit(REF_PATH, REF_PATH,200)
+
+ref_net, ref_provider, ref_train_data, ref_prediction, ref_prediction_res, ref_scores = ref_datainit.getData()
+
 ref_model = VisModel(ENCODER_DIMS, DECODER_DIMS)
 ##### load reference model
 ref_save_model = torch.load(os.path.join(REF_PATH, "Model", "vis.pth"), map_location=torch.device("cpu"))
 ref_model.load_state_dict(ref_save_model["state_dict"])
-ref_provider = NormalDataProvider(REF_PATH, net, EPOCH_START, EPOCH_END, EPOCH_PERIOD, split=-1, device=DEVICE, classes=CLASSES,verbose=1)
+
 #### get absolute alignment indicates
-ReferenceGenerator = ReferenceGenerator(ref_provider=ref_provider, tar_provider=data_provider,REF_EPOCH=200,TAR_EPOCH=200, model=net, DEVICE=DEVICE)
-absolute_alignment_indicates,predict_label_diff_indicates,predict_confidence_Diff_indicates,highdistance_indicates = ReferenceGenerator.subsetClassify(20, 3)
+
+gen = ReferenceGenerator(ref_provider=ref_provider, tar_provider=data_provider,REF_EPOCH=200,TAR_EPOCH=200,ref_model=ref_net,tar_model=net,DEVICE=DEVICE)
+
+absolute_alignment_indicates,predict_label_diff_indicates,predict_confidence_Diff_indicates,high_distance_indicates = gen.subsetClassify(18,2.8,0.3,0.05)
+print(len(absolute_alignment_indicates))
 
 prev_selected = absolute_alignment_indicates
 # with open(os.path.join(REF_PATH, "selected_idxs", "selected_{}.json".format(200)), "r") as f:

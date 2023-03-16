@@ -137,3 +137,11 @@ experiments/mnist.png
 /experiments/
 transformation_res/
 /transformation_res/
+
+/alignment_experiments/
+
+/alignment_evaluation/
+
+/alignment_experiments/
+
+/representationTrans/

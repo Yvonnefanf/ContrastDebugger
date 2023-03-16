@@ -32,12 +32,13 @@ class ProjectorAbstractClass(ABC):
         pass
 
 class Projector(ProjectorAbstractClass):
-    def __init__(self, vis_model, content_path, segments, device) -> None:
+    def __init__(self, vis_model, content_path, segments, device, vis_name="vis") -> None:
         self.content_path = content_path
         self.vis_model = vis_model
         self.segments = segments    #[(1,6),(6, 15),(15,42),(42,200)]
         self.DEVICE = device
         self.current_range = (-1,-1)
+        self.vis_name = vis_name
 
     def load(self, iteration):
         # [s,e)
@@ -54,7 +55,7 @@ class Projector(ProjectorAbstractClass):
                 idx = i
                 break
         # file_path = os.path.join(self.content_path, "Model", "tnn_hybrid_{}.pth".format(idx))
-        file_path = os.path.join(self.content_path, "Model", "vis.pth")
+        file_path = os.path.join(self.content_path, "Model", "{}.pth".format(self.vis_name))
         save_model = torch.load(file_path, map_location="cpu")
         self.vis_model.load_state_dict(save_model["state_dict"])
         self.vis_model.to(self.DEVICE)

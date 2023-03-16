@@ -41,7 +41,7 @@ class ReferenceGeneratorAbstractClass(ABC):
 class ReferenceGenerator(ReferenceGeneratorAbstractClass):
     '''generate the reference based on CCA
     '''
-    def __init__(self, ref_provider, tar_provider, REF_EPOCH, TAR_EPOCH,model,DEVICE) -> None:
+    def __init__(self, ref_provider, tar_provider, REF_EPOCH, TAR_EPOCH,tar_model, ref_model, DEVICE) -> None:
         """Init parameters for spatial edge constructor
 
         Parameters
@@ -60,7 +60,8 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
         self.tar_provider = tar_provider
         self.REF_EPOCH = REF_EPOCH
         self.TAR_EPOCH = TAR_EPOCH
-        self.model = model
+        self.tar_model = tar_model
+        self.ref_model = ref_model
         self.DEVICE = DEVICE
         self.split=-1
         ### reference train data and target train data
@@ -78,27 +79,28 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
 
 
     
-    def prediction_function(self, Epoch):
+    def prediction_function(self, Epoch, model_path, model):
         #TODO
-        tar_model_path = self.tar_provider.content_path
-        model_location = os.path.join(tar_model_path, "Model", "Epoch_{:d}".format(Epoch), "subject_model.pth")
-        self.model.load_state_dict(torch.load(model_location, map_location=torch.device("cpu")))
-        self.model.to(self.DEVICE)
-        self.model.eval()
 
-        model = torch.nn.Sequential(*(list(self.model.children())[self.split:]))
+        model_location = os.path.join(model_path, "Model", "Epoch_{:d}".format(Epoch), "subject_model.pth")
+        model.load_state_dict(torch.load(model_location, map_location=torch.device("cpu")))
         model.to(self.DEVICE)
         model.eval()
+
+        model = torch.nn.Sequential(*(list(model.children())[self.split:]))
+        model.to(self.DEVICE)
+        model.eval()
+      
         return model
     
-    def get_pred(self, epoch, data):
+    def get_pred(self, epoch, data, model_path, model):
         '''
         get the prediction score for data in epoch_id
         :param data: numpy.ndarray
         :param epoch_id:
         :return: pred, numpy.ndarray
         '''
-        prediction_func = self.prediction_function(epoch)
+        prediction_func = self.prediction_function(epoch,model_path, model)
 
         # data = torch.from_numpy(data)
         data = data.to(self.DEVICE)
@@ -107,10 +109,12 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
     
     def pred_loss_function(self,epoch, adjusted_input,indicates):
         target_output = self.tar_prediction[indicates]
-        output = self.get_pred(epoch, adjusted_input)
+        output = self.get_pred(epoch, adjusted_input,self.tar_provider.content_path, self.tar_model)
+        ref_output = self.get_pred(epoch, adjusted_input,self.ref_provider.content_path, self.ref_model)
         loss_output = F.mse_loss(torch.tensor(output), torch.tensor(target_output))
+        ref_loss_output = F.mse_loss(torch.tensor(ref_output), torch.tensor(target_output))
         loss_Rep = F.mse_loss(adjusted_input, torch.tensor(self.tar_provider.train_representation(epoch)[indicates]))
-        loss = loss_output + loss_Rep
+        loss = loss_output + loss_Rep + ref_loss_output
         return loss
     
     
@@ -163,10 +167,10 @@ class ReferenceGenerator(ReferenceGeneratorAbstractClass):
     
     
     
-    def generate_representation_by_cka(self,mes_val_for_diff, mes_val_for_same,epoch):
-        absolute_alignment_indicates,predict_label_diff_indicates,predict_confidence_Diff_indicates,high_distance_indicates = self.subsetClassify(mes_val_for_diff, mes_val_for_same)
-        diff_combine_same = np.concatenate((absolute_alignment_indicates, predict_label_diff_indicates), axis=0)
-        indicates = predict_label_diff_indicates
+    def generate_representation_by_cka(self,epoch,indicates):
+        # absolute_alignment_indicates,predict_label_diff_indicates,predict_confidence_Diff_indicates,high_distance_indicates = self.subsetClassify(mes_val_for_diff, mes_val_for_same)
+        # diff_combine_same = np.concatenate((absolute_alignment_indicates, predict_label_diff_indicates), axis=0)
+        # indicates = predict_label_diff_indicates
         tar = self.tar_train_data[indicates]
         ref = self.ref_train_data[indicates]
         x = torch.Tensor(tar)

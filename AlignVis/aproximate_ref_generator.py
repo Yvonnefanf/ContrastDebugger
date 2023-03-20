@@ -62,6 +62,14 @@ class ApproximateRefGenerator(ApproximateRefGeneratorAbstractClass):
         ##### confidence score list of reference and target 
         self.ref_conf_score = np.amax(softmax(self.ref_prediction, axis=1), axis=1)
         self.tar_conf_score = np.amax(softmax(self.tar_prediction, axis=1), axis=1)
+    
+    def get_prediction(self, input_representation,indicates):
+
+        input_representation = input_representation.detach().numpy()
+        tar = self.tar_prediction[indicates]
+        prediction = self.ref_provider.get_pred(self.REF_EPOCH, input_representation)
+
+        return prediction,tar
 
 
     def generate_representation_by_cka(self,indicates,epoch=1000,K_ALPHA = 10,C_ALPHA=10,P_ALPHA=0.1,alpha_for_pred_ref=1):
@@ -94,12 +102,13 @@ class ApproximateRefGenerator(ApproximateRefGeneratorAbstractClass):
             pred_loss = pred_loss_fn(y, indicates)
 
             #### Confidence loss
-            # confidence_loss_fn = ConfidenceLoss()
-            # confidence_loss = confidence_loss_fn(x,y)
+            confidence_loss_fn = ConfidenceLoss()
+            p_x,p_y = self.get_prediction(y,indicates)
+            confidence_loss = confidence_loss_fn(torch.Tensor(p_x),torch.Tensor(p_y))
 
             optimizer.zero_grad()
             # loss = loss
-            combined_loss = K_ALPHA * knn_loss + C_ALPHA * cka_loss + P_ALPHA * pred_loss
+            combined_loss = K_ALPHA * knn_loss + C_ALPHA * cka_loss + P_ALPHA * (pred_loss + confidence_loss)
             # loss.backward()
             combined_loss.backward()
             optimizer.step()
@@ -107,7 +116,8 @@ class ApproximateRefGenerator(ApproximateRefGeneratorAbstractClass):
             # Print the loss value every 100 iterations
             if i % 9 == 0:
                 print(f"Iteration {i}: CKA loss = {cka_loss.item():.10f}")
-                print(f"Iteration {i}: prediction loss = {pred_loss.item():.10f}")
-                print(f"Iteration {i}: KNN loss = {knn_loss.item():.10f}")
+                print(f"               Prediction loss = {pred_loss.item():.10f}")
+                print(f"               KNN loss = {knn_loss.item():.10f}")
+                print(f"               Confidence different loss = {confidence_loss.item():.10f}")
         
         return y.detach().numpy()

@@ -115,6 +115,7 @@ def get_border_points(model, input_x, confs, predictions, device, num_adv_eg, l_
         p = p/(np.sum(p))
 
         selected = np.random.choice(range(len(curr_samples)), size=1, p=p)[0]
+
         (cls1, cls2) = index_dict[selected]
         data1_index = np.argwhere(predictions == cls1).squeeze()
         data2_index = np.argwhere(predictions == cls2).squeeze()
@@ -139,6 +140,7 @@ def get_border_points(model, input_x, confs, predictions, device, num_adv_eg, l_
             adv_examples = torch.cat((adv_examples, attack1), dim=0)
             num_adv += 1
             curr_samples[selected] += 1
+   
         tot_num[selected] += 1
 
         if num_adv < num_adv_eg:
@@ -149,11 +151,141 @@ def get_border_points(model, input_x, confs, predictions, device, num_adv_eg, l_
                 num_adv += 1
                 curr_samples[selected] += 1
 
+
     t1 = time.time()
     if verbose:
         print('Total time {:2f}'.format(t1 - t0))
 
     return adv_examples, curr_samples, tot_num
+
+
+
+def get_aligned_border_points(model, input_x, tar_model, tar_input_x, device, num_adv_eg, l_bound=0.6, lambd=0.2, verbose=1):
+    '''Get BPs
+    :param model: subject model
+    :param input_x: images, torch.Tensor of shape (N, C, H, W)
+    :param confs: logits, numpy.ndarray of shape (N, class_num)
+    :param predictions: class prediction, numpy.ndarray of shape (N,)
+    :param num_adv_eg: number of adversarial examples to be generated, int
+    :param l_bound: lower bound to conduct mix-up attack, range (0, 1)
+    :param lambd: trade-off between efficiency and diversity, (0, 1)
+    :return adv_examples: adversarial images, torch.Tensor of shape (N, C, H, W)
+    '''
+    confs = batch_run(model,input_x)
+    predictions = np.argmax(confs, axis=1).squeeze()
+
+    tar_confs = batch_run(tar_model, tar_input_x)
+    tar_predictions = np.argmax(tar_confs, axis=1).squeeze()
+
+    adv_examples = torch.tensor([]).to(device)
+    tar_adv_examples = torch.tensor([]).to(device)
+  
+    
+
+    num_adv = 0
+    a = lambd
+    # count valid classes
+    valid_cls = np.unique(predictions)
+    valid_cls_num = len(valid_cls)
+    if valid_cls_num < 2:
+        raise Exception("Valid prediction classes less than 2!")
+
+    succ_rate = np.ones(int(valid_cls_num*(valid_cls_num-1)/2))
+    tot_num = np.zeros(int(valid_cls_num*(valid_cls_num-1)/2))
+    curr_samples = np.zeros(int(valid_cls_num*(valid_cls_num-1)/2))
+
+    # record index dictionary for query index pair
+    idx = 0
+    index_dict = dict()
+    for i in range(valid_cls_num):
+        for j in range(i+1, len(valid_cls)):
+            index_dict[idx] = (valid_cls[i], valid_cls[j])
+            idx += 1
+
+    t0 = time.time()
+    while num_adv < num_adv_eg:
+        idxs = np.argwhere(tot_num != 0).squeeze()
+        succ = curr_samples[idxs] / tot_num[idxs]
+        succ_rate[idxs] = succ
+
+        curr_mean = np.mean(curr_samples)
+        curr_rate = curr_mean - curr_samples
+        curr_rate[curr_rate < 0] = 0
+        if np.std(curr_rate) == 0:
+            curr_rate = 1. / len(curr_rate)
+        else:
+            curr_rate = curr_rate / (1e-4 + np.sum(curr_rate))
+        p = a*succ_rate + (1-a)*curr_rate
+        p = p/(np.sum(p))
+
+        selected = np.random.choice(range(len(curr_samples)), size=1, p=p)[0]
+
+        (cls1, cls2) = index_dict[selected]
+        data1_index = np.argwhere(np.logical_and(predictions == cls1,tar_predictions == cls1)).squeeze()
+        data2_index = np.argwhere(np.logical_and(predictions == cls2,tar_predictions == cls2)).squeeze()
+        conf1 = confs[data1_index]
+        conf2 = confs[data2_index]
+        tar_confs1 = tar_confs[data1_index]
+        tar_confs2 = tar_confs[data2_index]
+
+        # probability to be sampled is inversely proportional to the distance to "targeted" decision boundary
+        # smaller class1-class2 is preferred
+        print("conf1",conf1.shape,conf2.shape,tar_confs1.shape,tar_confs2.shape,len(data1_index),len(data2_index))
+        pvec1 = (1 / (conf1[:, cls1] - conf1[:, cls2] + 1e-4)) / np.sum(
+            (1 / (conf1[:, cls1] - conf1[:, cls2] + 1e-4)))
+        pvec2 = (1 / (conf2[:, cls2] - conf2[:, cls1] + 1e-4)) / np.sum(
+            (1 / (conf2[:, cls2] - conf2[:, cls1] + 1e-4)))
+        
+
+        tar_pvec1 = (1 / (tar_confs1[:, cls1] - tar_confs1[:, cls2] + 1e-4)) / np.sum(
+            (1 / (tar_confs1[:, cls1] - tar_confs1[:, cls2] + 1e-4)))
+        tar_pvec2 = (1 / (tar_confs2[:, cls2] - tar_confs2[:, cls1] + 1e-4)) / np.sum(
+            (1 / (tar_confs2[:, cls2] - tar_confs2[:, cls1] + 1e-4)))
+        
+        pvec1_m = (pvec1 * 0.5 + tar_pvec1 * 0.5) / (np.sum(pvec1 * 0.5) + np.sum(tar_pvec1 * 0.5))
+        pvec2_m = (pvec2 * 0.5 + tar_pvec2 * 0.5) / (np.sum(pvec2 * 0.5) + np.sum(tar_pvec2 * 0.5))
+
+        if len(data1_index) > 0 and len(data2_index) > 0:
+            image1_idx = np.random.choice(range(len(data1_index)), size=1, p=pvec1_m)
+            image2_idx = np.random.choice(range(len(data2_index)), size=1, p=pvec2_m)
+    
+            # rest of the code inside the while loop
+        else:
+            print("data1_index or data2_index is empty. Skipping this iteration.")
+            continue
+
+        image1 = input_x[data1_index[image1_idx]]
+        image2 = input_x[data2_index[image2_idx]]
+
+        tar_image1 = tar_input_x[data1_index[image1_idx]]
+        tar_image2 = tar_input_x[data2_index[image2_idx]]
+
+        attack1, successful1, _ = mixup_bi(model, image1, image2, cls1, cls2, device, l_bound=l_bound)
+        tar_attack1, tar_successful1, _ = mixup_bi(tar_model,tar_image1,tar_image2, cls1, cls2, device, l_bound=l_bound)
+        if successful1 and tar_successful1:
+            adv_examples = torch.cat((adv_examples, attack1), dim=0)
+            tar_adv_examples = torch.cat((tar_adv_examples, tar_attack1), dim=0)
+            num_adv += 1
+            curr_samples[selected] += 1
+          
+        tot_num[selected] += 1
+
+        if num_adv < num_adv_eg:
+            attack2, successful2, _ = mixup_bi(model, image2, image1, cls2, cls1, device, l_bound=l_bound)
+            tar_attack2, tar_successful2, _ = mixup_bi(tar_model,tar_image2,tar_image1, cls2, cls1, device, l_bound=l_bound)
+            tot_num[selected] += 1
+            if successful2 and tar_successful2:
+                adv_examples = torch.cat((adv_examples, attack2), dim=0)
+                tar_adv_examples = torch.cat((tar_adv_examples, tar_attack2), dim=0)
+                num_adv += 1
+                curr_samples[selected] += 1
+            
+
+    t1 = time.time()
+    if verbose:
+        print('Total time {:2f}'.format(t1 - t0))
+
+    return adv_examples, tar_adv_examples, curr_samples, tot_num
 
 
 def batch_run(model, data, batch_size=200):

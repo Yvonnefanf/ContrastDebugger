@@ -5,6 +5,7 @@ import time
 import numpy as np
 import argparse
 sys.path.append("..")
+sys.path.append("/home/yifan/experiments/noise/20")
 
 
 from torch.utils.data import DataLoader

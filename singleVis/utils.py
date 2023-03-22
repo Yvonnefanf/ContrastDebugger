@@ -230,29 +230,36 @@ def get_aligned_border_points(model, input_x, tar_model, tar_input_x, device, nu
 
         # probability to be sampled is inversely proportional to the distance to "targeted" decision boundary
         # smaller class1-class2 is preferred
-        print("conf1",conf1.shape,conf2.shape,tar_confs1.shape,tar_confs2.shape,len(data1_index),len(data2_index))
-        pvec1 = (1 / (conf1[:, cls1] - conf1[:, cls2] + 1e-4)) / np.sum(
-            (1 / (conf1[:, cls1] - conf1[:, cls2] + 1e-4)))
-        pvec2 = (1 / (conf2[:, cls2] - conf2[:, cls1] + 1e-4)) / np.sum(
-            (1 / (conf2[:, cls2] - conf2[:, cls1] + 1e-4)))
-        
-
-        tar_pvec1 = (1 / (tar_confs1[:, cls1] - tar_confs1[:, cls2] + 1e-4)) / np.sum(
-            (1 / (tar_confs1[:, cls1] - tar_confs1[:, cls2] + 1e-4)))
-        tar_pvec2 = (1 / (tar_confs2[:, cls2] - tar_confs2[:, cls1] + 1e-4)) / np.sum(
-            (1 / (tar_confs2[:, cls2] - tar_confs2[:, cls1] + 1e-4)))
-        
-        pvec1_m = (pvec1 * 0.5 + tar_pvec1 * 0.5) / (np.sum(pvec1 * 0.5) + np.sum(tar_pvec1 * 0.5))
-        pvec2_m = (pvec2 * 0.5 + tar_pvec2 * 0.5) / (np.sum(pvec2 * 0.5) + np.sum(tar_pvec2 * 0.5))
-
-        if len(data1_index) > 0 and len(data2_index) > 0:
-            image1_idx = np.random.choice(range(len(data1_index)), size=1, p=pvec1_m)
-            image2_idx = np.random.choice(range(len(data2_index)), size=1, p=pvec2_m)
+        if (data1_index != None).any() and (data2_index != None).any():
+            # print(data1_index, data2_index)
+            if len(data1_index) > 0 and len(data2_index) > 0:
+                print("conf1",conf1.shape,conf2.shape,tar_confs1.shape,tar_confs2.shape)
+                pvec1 = (1 / (conf1[:, cls1] - conf1[:, cls2] + 1e-4)) / np.sum(
+                    (1 / (conf1[:, cls1] - conf1[:, cls2] + 1e-4)))
+                pvec2 = (1 / (conf2[:, cls2] - conf2[:, cls1] + 1e-4)) / np.sum(
+                    (1 / (conf2[:, cls2] - conf2[:, cls1] + 1e-4)))
     
-            # rest of the code inside the while loop
-        else:
-            print("data1_index or data2_index is empty. Skipping this iteration.")
+    
+                tar_pvec1 = (1 / (tar_confs1[:, cls1] - tar_confs1[:, cls2] + 1e-4)) / np.sum(
+                    (1 / (tar_confs1[:, cls1] - tar_confs1[:, cls2] + 1e-4)))
+                tar_pvec2 = (1 / (tar_confs2[:, cls2] - tar_confs2[:, cls1] + 1e-4)) / np.sum(
+                    (1 / (tar_confs2[:, cls2] - tar_confs2[:, cls1] + 1e-4)))
+    
+                pvec1_m = (pvec1 * 0.5 + tar_pvec1 * 0.5) / (np.sum(pvec1 * 0.5) + np.sum(tar_pvec1 * 0.5))
+                pvec2_m = (pvec2 * 0.5 + tar_pvec2 * 0.5) / (np.sum(pvec2 * 0.5) + np.sum(tar_pvec2 * 0.5))
+
+           
+                image1_idx = np.random.choice(range(len(data1_index)), size=1, p=pvec1_m)
+                image2_idx = np.random.choice(range(len(data2_index)), size=1, p=pvec2_m)
+
+                # rest of the code inside the while loop
+            else:
+                print("data1_index or data2_index is empty. Skipping this iteration.")
+                continue
+        else: 
+            print("data1_index or data2_index is None")
             continue
+
 
         image1 = input_x[data1_index[image1_idx]]
         image2 = input_x[data2_index[image2_idx]]

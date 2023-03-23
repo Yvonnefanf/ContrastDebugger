@@ -3,6 +3,7 @@ import torch
 import sys
 import os
 sys.path.append("..")
+sys.path.append("/home/yifan/experiments/lr_1e-3")
 
 import argparse
 
@@ -28,7 +29,7 @@ SETTING = config["SETTING"]
 CLASSES = config["CLASSES"]
 DATASET = config["DATASET"]
 PREPROCESS = config["VISUALIZATION"]["PREPROCESS"]
-
+PREPROCESS = 0
 GPU_ID = config["GPU"]
 EPOCH_START = config["EPOCH_START"]
 EPOCH_END = config["EPOCH_END"]

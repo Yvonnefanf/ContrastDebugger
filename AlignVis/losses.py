@@ -101,14 +101,15 @@ class PredictionLoss(nn.Module):
 
     def forward(self, adjusted_input, indicates):
         target_output = self.tar_provider.get_pred(self.TAR_EPOCH, self.tar_provider.train_representation(self.TAR_EPOCH))[indicates]
-        tar_output = self.get_pred(self.TAR_EPOCH, adjusted_input, self.tar_provider.content_path, self.tar_model)
+        # tar_output = self.get_pred(self.TAR_EPOCH, adjusted_input, self.tar_provider.content_path, self.tar_model)
         ref_output = self.get_pred(self.REF_EPOCH, adjusted_input, self.ref_provider.content_path, self.ref_model)
         
-        loss_tar_output = F.mse_loss(torch.tensor(tar_output), torch.tensor(target_output))
+        # loss_tar_output = F.mse_loss(torch.tensor(tar_output), torch.tensor(target_output))
         loss_ref_output = F.mse_loss(torch.tensor(ref_output), torch.tensor(target_output))
         loss_Rep = F.mse_loss(adjusted_input, torch.tensor(self.tar_provider.train_representation(self.REF_EPOCH)[indicates]))
         
-        loss = loss_tar_output + loss_Rep + self.alpha_for_pred_ref * loss_ref_output
+        # loss = loss_tar_output + loss_Rep + self.alpha_for_pred_ref * loss_ref_output
+        loss =  loss_Rep + self.alpha_for_pred_ref * loss_ref_output
         return loss
 
 class ConfidenceLoss(nn.Module):

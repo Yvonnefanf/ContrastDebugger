@@ -90,7 +90,10 @@ class ApproximateRefGenerator(ApproximateRefGeneratorAbstractClass):
             
             ##### knn loss
             knn_overlap_loss = KNNOverlapLoss(k=10)
+            ##### knn overleap different with target
             knn_loss = knn_overlap_loss(input=y, target=x)
+            ##### knn overleap different with reference
+            knn_loss_with_ref = knn_overlap_loss(input=y, target=z)
 
             #### CKA loss
             cka_loss_f = CKALoss(gamma=None, alpha=1e-3)
@@ -108,7 +111,7 @@ class ApproximateRefGenerator(ApproximateRefGeneratorAbstractClass):
 
             optimizer.zero_grad()
             # loss = loss
-            combined_loss = K_ALPHA * knn_loss + C_ALPHA * cka_loss + P_ALPHA * (pred_loss + confidence_loss)
+            combined_loss = K_ALPHA * (knn_loss + knn_loss_with_ref) + C_ALPHA * cka_loss + P_ALPHA * (pred_loss + confidence_loss)
             # loss.backward()
             combined_loss.backward()
             optimizer.step()
@@ -118,6 +121,7 @@ class ApproximateRefGenerator(ApproximateRefGeneratorAbstractClass):
                 print(f"Iteration {i}: CKA loss = {cka_loss.item():.10f}")
                 print(f"               Prediction loss = {pred_loss.item():.10f}")
                 print(f"               KNN loss = {knn_loss.item():.10f}")
+                print(f"              KNN loss with ref = {knn_loss_with_ref.item():.10f}")
                 print(f"               Confidence different loss = {confidence_loss.item():.10f}")
         
         return y.detach().numpy()

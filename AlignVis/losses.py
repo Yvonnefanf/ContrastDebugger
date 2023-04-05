@@ -99,14 +99,14 @@ class PredictionLoss(nn.Module):
         return pred.squeeze()
 
 
-    def forward(self, adjusted_input, indicates):
-        target_output = self.tar_provider.get_pred(self.TAR_EPOCH, self.tar_provider.train_representation(self.TAR_EPOCH))[indicates]
+    def forward(self, adjusted_input, init_input):
+        target_output = self.tar_provider.get_pred(self.TAR_EPOCH, init_input)
         # tar_output = self.get_pred(self.TAR_EPOCH, adjusted_input, self.tar_provider.content_path, self.tar_model)
         ref_output = self.get_pred(self.REF_EPOCH, adjusted_input, self.ref_provider.content_path, self.ref_model)
         
         # loss_tar_output = F.mse_loss(torch.tensor(tar_output), torch.tensor(target_output))
         loss_ref_output = F.mse_loss(torch.tensor(ref_output), torch.tensor(target_output))
-        loss_Rep = F.mse_loss(adjusted_input, torch.tensor(self.tar_provider.train_representation(self.REF_EPOCH)[indicates]))
+        loss_Rep = F.mse_loss(adjusted_input, torch.tensor(init_input))
         
         # loss = loss_tar_output + loss_Rep + self.alpha_for_pred_ref * loss_ref_output
         loss =  loss_Rep + self.alpha_for_pred_ref * loss_ref_output
@@ -128,3 +128,44 @@ class ConfidenceLoss(nn.Module):
         loss = torch.mean(confidence_diff)
         return loss
 
+class TopoLoss(nn.Module):
+    def __init__(self, alpha=1.0, beta=1.0):
+        super(TopoLoss, self).__init__()
+        self.alpha = alpha
+        self.beta = beta
+        
+    def forward(self, y_trans, y):
+        # Compute pairwise distances between original and mapped outputs
+        dist_y = pairwise_distances(y)
+        dist_y_trans = pairwise_distances(y_trans)
+        
+        # Compute pairwise differences between distances
+        delta_dist = dist_y - dist_y_trans
+        
+        # Compute pairwise similarities between neighborhoods
+        neigh_y = compute_neighborhoods(dist_y)
+        neigh_y_trans = compute_neighborhoods(dist_y_trans)
+        sim = compute_neighborhood_similarity(neigh_y, neigh_y_trans)
+        
+        # Compute topology-preserving loss
+        topo_loss = self.alpha * torch.sum(torch.square(delta_dist)) + self.beta * torch.sum(torch.square(1.0 - sim))
+        
+        return topo_loss
+        
+def pairwise_distances(x):
+    # Compute pairwise distances between rows of matrix x
+    norm = (x ** 2).sum(1).reshape(-1, 1)
+    dist = norm + norm.T - 2.0 * torch.mm(x, x.T)
+    return torch.sqrt(torch.clamp(dist, 0.0, np.inf))
+
+def compute_neighborhoods(dist):
+    # Compute neighborhoods based on pairwise distances
+    k = 5 # number of nearest neighbors
+    idx = torch.argsort(dist, dim=1)
+    neigh = idx[:, 1:k+1]
+    return neigh
+
+def compute_neighborhood_similarity(neigh1, neigh2):
+    # Compute similarity between neighborhoods
+    sim = torch.mean((neigh1.unsqueeze(2) == neigh2.unsqueeze(1)).float(), dim=2)
+    return sim

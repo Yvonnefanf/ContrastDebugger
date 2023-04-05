@@ -232,7 +232,7 @@ class TrainingSnapshotAlignment(TrainingSnapshotAlignmentAbstractClass):
             loss1 = ((( X.matmul(R) - Y)**2).sum())/m
             loss2 = self.kernel_HSIC_cka_loss_consider_init(X.matmul(R),Y,X,CKA_LAMBAD_FOR_INIT)
             loss3 = self.knn_overlap_loss(X.matmul(R),Y,K_neibour)
-            if i% 99 == 0:
+            if i% 19 == 0:
                 print(f"iteration {i}, loss1 {loss1}",'loss2', {loss2}, "neibour_loss",{loss3}) 
 
             loss = loss1 + CKA_LAMBDA * loss2 + N_LAMBDA *loss3

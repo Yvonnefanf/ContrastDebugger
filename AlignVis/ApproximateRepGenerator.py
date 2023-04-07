@@ -143,7 +143,7 @@ class ApproximateRefGenerator(ApproximateRefGeneratorAbstractClass):
             combined_loss.backward()
             optimizer.step()
 
-            # Print the loss value every 100 iterations
+            # Print the loss value every 10 iterations
             if i % 9 == 0:
                 print(f"Iteration {i}: CKA loss = {cka_loss.item():.10f}")
                 print(f"               Prediction loss = {pred_loss.item():.10f}")

@@ -16,8 +16,8 @@ class PairedDataset(Dataset):
     
 class DataLoaderInit():
     def __init__(self, X, Y):
-        self.tensor_X = torch.Tensor(X) # Example X tensor with 1000 samples
-        self.tensor_Y = torch.Tensor(Y) # Example Y tensor with 1000 samples
+        self.tensor_X = torch.Tensor(X)
+        self.tensor_Y = torch.Tensor(Y) 
         return 
     def get_data_loader(self):
         paired_dataset = PairedDataset(self.tensor_X, self.tensor_Y)

@@ -35,7 +35,7 @@ class VisualizerAbstractClass(ABC):
         pass
 
 class visualizer(VisualizerAbstractClass):
-    def __init__(self, data_provider, autoencoder, R, RT_V, train_representation, projector, resolution, indicates, cmap='tab10'):
+    def __init__(self, data_provider, autoencoder, train_representation, projector, resolution, indicates, cmap='tab10'):
       
         self.data_provider = data_provider
         self.projector = projector
@@ -45,8 +45,6 @@ class visualizer(VisualizerAbstractClass):
         self.resolution= resolution
         self.train_representation = train_representation
         self.indicates = indicates
-        self.R = R
-        self.RT_V = RT_V
         self.autoencoder = autoencoder
 
     def _init_plot(self, only_img=False):
@@ -112,54 +110,6 @@ class visualizer(VisualizerAbstractClass):
 
         return x_min, y_min, x_max, y_max
     
-    # def get_epoch_decision_view(self, epoch, resolution, xy_limit=None):
-    #     '''
-    #     get background classifier view
-    #     :param epoch_id: epoch that need to be visualized
-    #     :param resolution: background resolution
-    #     :return:
-    #         grid_view : numpy.ndarray, self.resolution,self.resolution, 2
-    #         decision_view : numpy.ndarray, self.resolution,self.resolution, 3
-    #     '''
-    #     print('Computing decision regions ...')
-
-    #     if xy_limit is None:
-    #         x_min, y_min, x_max, y_max = self.get_epoch_plot_measures(epoch)
-    #     else:
-    #         x_min, y_min, x_max, y_max = xy_limit
-
-    #     # create grid
-    #     xs = np.linspace(x_min, x_max, resolution)
-    #     ys = np.linspace(y_min, y_max, resolution)
-    #     grid = np.array(np.meshgrid(xs, ys))
-    #     grid = np.swapaxes(grid.reshape(grid.shape[0], -1), 0, 1)
-
-    #     # map gridmpoint to images
-    #     grid_samples = self.projector.batch_inverse(epoch, grid)
-
-    #     mesh_preds = self.data_provider.get_pred(epoch, grid_samples)
-    #     mesh_preds = mesh_preds + 1e-8
-
-    #     sort_preds = np.sort(mesh_preds, axis=1)
-    #     diff = (sort_preds[:, -1] - sort_preds[:, -2]) / (sort_preds[:, -1] - sort_preds[:, 0])
-    #     border = np.zeros(len(diff), dtype=np.uint8) + 0.05
-    #     border[diff < 0.15] = 1
-    #     diff[border == 1] = 0.
-
-    #     diff = diff/(diff.max()+1e-8)
-    #     diff = diff*0.9
-
-    #     mesh_classes = mesh_preds.argmax(axis=1)
-    #     mesh_max_class = max(mesh_classes)
-    #     color = self.cmap(mesh_classes / mesh_max_class)
-
-    #     diff = diff.reshape(-1, 1)
-
-    #     color = color[:, 0:3]
-    #     color = diff * 0.5 * color + (1 - diff) * np.ones(color.shape, dtype=np.uint8)
-    #     decision_view = color.reshape(resolution, resolution, 3)
-    #     grid_view = grid.reshape(resolution, resolution, 2)
-    #     return grid_view, decision_view
     
     def get_epoch_decision_view(self, epoch, resolution):
         '''

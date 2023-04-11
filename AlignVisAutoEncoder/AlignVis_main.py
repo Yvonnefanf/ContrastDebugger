@@ -11,6 +11,9 @@ from scipy.spatial.distance import cdist
 from sklearn.neighbors import kneighbors_graph
 import torch.nn.functional as F
 
+
+
+
 parser = argparse.ArgumentParser(description='Process hyperparameters...')
 parser.add_argument('--tar_path', type=str)
 parser.add_argument('--ref_path', type=str)
@@ -51,18 +54,45 @@ I = np.eye(512)
 projector = TimeVisProjector(vis_model=model, content_path=REF_PATH, vis_model_name=VIS_MODEL_NAME, device="cpu")
 vis = visualizer(ref_provider, I,I, np.dot(ref_provider.train_representation(TAR_EPOCH),I), projector, 200,[0,1],'tab10')
 
+
+#################################################### generate boundary features start ####################################################
+####### generate boundary ponits for tar and ref respectively
+from AlignVis.AlignmentBoundaryGenerator import AlignmentBoundaryGenerator
+BoundaryGen = AlignmentBoundaryGenerator(REF_PATH,TAR_PATH,REF_PATH,TAR_PATH,REF_EPOCH,TAR_EPOCH,DEVICE)
+ref_boundary,tar_boundary = BoundaryGen.get_boundary_point(DEVICE,num_adv_eg=5000)
+
+ref_feature_model = ref_model.to(DEVICE)
+ref_feature_model = nn.Sequential(*list(ref_feature_model.children())[:-1])
+with torch.no_grad():
+    features = ref_feature_model(ref_boundary)
+    ref_features = features.view(ref_boundary.shape[0], -1).cpu().numpy()
+
+###### get border sample features
+tar_feature_model = tar_model.to(DEVICE)
+tar_feature_model = nn.Sequential(*list(tar_feature_model.children())[:-1])
+with torch.no_grad():
+    tar_features = tar_feature_model(tar_boundary)
+    tar_features = tar_features.view(tar_boundary.shape[0], -1).cpu().numpy()
+
+#################################################### generate boundary features end ####################################################
+
 from AlignVisAutoEncoder.autoencoder import SimpleAutoencoder
 from AlignVisAutoEncoder.data import DataLoaderInit
 input_dim = 512
 output_dim = 512
-
+######### definate autoencoder structure
 autoencoder = SimpleAutoencoder(input_dim,output_dim)
-##### eval
-
-# init_data = tar_provider.train_representation(TAR_EPOCH)
-
+######### definate dataloader
+input_X = np.concatenate((ref_provider.train_representation(REF_EPOCH), ref_features),axis=0)
+input_Y = np.concatenate((tar_provider.train_representation(TAR_EPOCH), tar_features),axis=0)
+data_loader_b = DataLoaderInit(input_X, input_Y)
 data_loader = DataLoaderInit(ref_provider.train_representation(REF_EPOCH), tar_provider.train_representation(TAR_EPOCH))
 dataloader = data_loader.get_data_loader()
+dataloader_b = data_loader_b.get_data_loader()
+
+
+#################################################### Trainer ####################################################
+from AlignVis.losses import KNNOverlapLoss, CKALoss, PredictionLoss, ConfidenceLoss
 
 def earth_movers_distance(X, Y, k=5):
     X, Y = X.detach().numpy(), Y.detach().numpy()
@@ -99,7 +129,7 @@ def prediction_loss(trans_X, Y):
 
 # Define hyperparameters
 num_epochs = 10
-batch_size = 20
+batch_size = 100
 learning_rate = 1e-5
 
 # Define the loss function and the optimizer
@@ -108,11 +138,12 @@ optimizer = optim.Adam(autoencoder.parameters(), lr=learning_rate,weight_decay=1
 
 alpha = 1 # weight for topological loss, adjust this according to your requirements
 
+
 # Training loop
 for epoch in range(num_epochs):
     # Initialize a list to store the predictions of unlabelled data
     unlabelled_preds = []
-    for data_X, data_Y in dataloader: # Assuming you have a DataLoader instance with paired data (X, Y)
+    for data_X, data_Y in dataloader_b: # Assuming you have a DataLoader instance with paired data (X, Y)
         # Zero the gradients
         optimizer.zero_grad()
 
@@ -123,12 +154,16 @@ for epoch in range(num_epochs):
         topological_loss_encoder = earth_movers_distance(data_Y, transformed_Y)
         topological_loss_decoder = earth_movers_distance(data_Y, recon_X)
         
-        loss_f_decoder = 0.01 * frobenius_norm_loss(recon_X, data_Y) + 10 * topological_loss_decoder
+        loss_f_decoder = frobenius_norm_loss(recon_X, data_X) + 10 * topological_loss_decoder
         loss_f_encoder = frobenius_norm_loss(transformed_Y, data_X) + topological_loss_encoder
 
         pred_loss = prediction_loss(recon_X, data_Y)
 
-        loss = loss_f_decoder + loss_f_encoder + 0.01 * pred_loss
+        #### CKA loss
+        cka_loss_f = CKALoss(gamma=None, alpha=1e-3)
+        cka_loss = cka_loss_f(data_Y,transformed_Y,recon_X)
+
+        loss = loss_f_decoder + loss_f_encoder + 0.01 * pred_loss + cka_loss
 
         # Backward pass
         loss.backward()
@@ -136,15 +171,12 @@ for epoch in range(num_epochs):
         # Update the weights
         optimizer.step()
 
-
-
-    # Print the loss for each epoch
-    print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}, Loss decoder: {loss_f_decoder.item():.4f},Loss encoder: {loss_f_encoder.item():.4f},pred_loss,{pred_loss}')
-
+    print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}, Loss decoder: {loss_f_decoder.item():.4f},Loss encoder: {loss_f_encoder.item():.4f},pred_loss,{pred_loss.item():.4f},CKA,{cka_loss.item():.4f}')
 
 torch.save({
-    'epoch': epoch,
+    'epoch': TAR_EPOCH,
     'model_state_dict': autoencoder.state_dict(),
     'optimizer_state_dict': optimizer.state_dict(),
     'loss': loss
-},SAVE_PATH)
+}, SAVE_PATH)
+

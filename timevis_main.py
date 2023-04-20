@@ -4,6 +4,7 @@ import os
 import time
 import numpy as np
 import argparse
+import json
 
 from torch.utils.data import DataLoader
 from torch.utils.data import WeightedRandomSampler
@@ -14,7 +15,7 @@ from singleVis.SingleVisualizationModel import VisModel
 from singleVis.losses import UmapLoss, ReconstructionLoss, SingleVisLoss
 from singleVis.edge_dataset import DataHandler
 from singleVis.trainer import SingleVisTrainer
-from singleVis.data import NormalDataProvider
+from singleVis.data import TimeVisDataProvider
 from singleVis.spatial_edge_constructor import kcSpatialEdgeConstructor
 from singleVis.temporal_edge_constructor import GlobalTemporalEdgeConstructor
 from singleVis.projector import TimeVisProjector
@@ -32,7 +33,9 @@ args = parser.parse_args()
 
 CONTENT_PATH = args.content_path
 sys.path.append(CONTENT_PATH)
-from config import config
+with open(os.path.join(CONTENT_PATH, "config.json"), "r") as f:
+    config = json.load(f)
+config = config[VIS_METHOD]
 
 # record output information
 now = time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(time.time())) 
@@ -84,7 +87,8 @@ net = eval("subject_model.{}()".format(NET))
 ########################################################################################################################
 #                                                    TRAINING SETTING                                                  #
 ########################################################################################################################
-data_provider = NormalDataProvider(CONTENT_PATH, net, EPOCH_START, EPOCH_END, EPOCH_PERIOD, split=-1, device=DEVICE, classes=CLASSES,verbose=1)
+data_provider = TimeVisDataProvider(CONTENT_PATH, net, EPOCH_START, EPOCH_END, EPOCH_PERIOD, split=-1, device=DEVICE, classes=CLASSES,verbose=1)
+# data_provider = NormalDataProvider(CONTENT_PATH, net, EPOCH_START, EPOCH_END, EPOCH_PERIOD, split=-1, device=DEVICE, classes=CLASSES,verbose=1)
 if PREPROCESS:
     data_provider._meta_data()
     if B_N_EPOCHS >0:

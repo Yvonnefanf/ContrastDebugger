@@ -203,6 +203,27 @@ class Evaluator(EvaluatorAbstractClass):
 
         return val
         
+################################# boundary neibour preserving #############################################################
 
+    def eval_ppr_autoencoder(self , autoencoder):
+
+        pred = self.tar_provider.get_pred(self.TAR_EPOCH, self.tar_provider.train_representation(self.TAR_EPOCH)).argmax(axis=1)
+        
+        init_data = self.tar_provider.train_representation(self.TAR_EPOCH)
+        encoded_tar = autoencoder.encoder(torch.Tensor(init_data))
+        train_data = encoded_tar.detach().numpy()
+
+
+        embedding = self.ref_provider.batch_project(self.REF_EPOCH, train_data)
+        inv_data = self.ref_provider.batch_inverse(self.REF_EPOCH, embedding)
+        new_inv = autoencoder.decoder(torch.Tensor(inv_data))
+        new_inv = new_inv.detach().numpy()
+
+        new_pred = self.tar_provider.get_pred(self.REF_EPOCH, new_inv).argmax(axis=1)
+
+        val = evaluate_inv_accu(pred, new_pred)
+       
+        print("#train# autoencoder PPR: {:.2f} in epoch {:d}".format(val, self.REF_EPOCH))
+        return val
 
   

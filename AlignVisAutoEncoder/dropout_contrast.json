@@ -1,0 +1,10 @@
+{
+    "CLEAN_PATH" : "/home/yifan/dataset/resnet18_with_dropout/pairflip/cifar10/0/",
+    "REF_PATH": "/home/yifan/dataset/clean/pairflip/cifar10/0",
+    "ENCODER_DIMS": [512,256,256,256,256,2],
+    "DECODER_DIMS": [2,256,256,256,256,512],
+    "VIS_MODEL_NAME": "vis",
+    "DEVICE": "cuda:0",
+    "REF_EPOCH": 200,
+    "TAR_EPOCH": 200
+}

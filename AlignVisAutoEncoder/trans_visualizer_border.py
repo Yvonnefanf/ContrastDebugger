@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
 import base64
-import torch
 
 class VisualizerAbstractClass(ABC):
     @abstractmethod
@@ -35,7 +34,7 @@ class VisualizerAbstractClass(ABC):
         pass
 
 class visualizer(VisualizerAbstractClass):
-    def __init__(self, data_provider, autoencoder, R, RT_V, train_representation, projector, resolution, indicates, cmap='tab10'):
+    def __init__(self, data_provider, R, RT_V, train_representation, projector, resolution, indicates, cmap='tab10'):
       
         self.data_provider = data_provider
         self.projector = projector
@@ -47,7 +46,6 @@ class visualizer(VisualizerAbstractClass):
         self.indicates = indicates
         self.R = R
         self.RT_V = RT_V
-        self.autoencoder = autoencoder
 
     def _init_plot(self, only_img=False):
         '''
@@ -112,55 +110,6 @@ class visualizer(VisualizerAbstractClass):
 
         return x_min, y_min, x_max, y_max
     
-    # def get_epoch_decision_view(self, epoch, resolution, xy_limit=None):
-    #     '''
-    #     get background classifier view
-    #     :param epoch_id: epoch that need to be visualized
-    #     :param resolution: background resolution
-    #     :return:
-    #         grid_view : numpy.ndarray, self.resolution,self.resolution, 2
-    #         decision_view : numpy.ndarray, self.resolution,self.resolution, 3
-    #     '''
-    #     print('Computing decision regions ...')
-
-    #     if xy_limit is None:
-    #         x_min, y_min, x_max, y_max = self.get_epoch_plot_measures(epoch)
-    #     else:
-    #         x_min, y_min, x_max, y_max = xy_limit
-
-    #     # create grid
-    #     xs = np.linspace(x_min, x_max, resolution)
-    #     ys = np.linspace(y_min, y_max, resolution)
-    #     grid = np.array(np.meshgrid(xs, ys))
-    #     grid = np.swapaxes(grid.reshape(grid.shape[0], -1), 0, 1)
-
-    #     # map gridmpoint to images
-    #     grid_samples = self.projector.batch_inverse(epoch, grid)
-
-    #     mesh_preds = self.data_provider.get_pred(epoch, grid_samples)
-    #     mesh_preds = mesh_preds + 1e-8
-
-    #     sort_preds = np.sort(mesh_preds, axis=1)
-    #     diff = (sort_preds[:, -1] - sort_preds[:, -2]) / (sort_preds[:, -1] - sort_preds[:, 0])
-    #     border = np.zeros(len(diff), dtype=np.uint8) + 0.05
-    #     border[diff < 0.15] = 1
-    #     diff[border == 1] = 0.
-
-    #     diff = diff/(diff.max()+1e-8)
-    #     diff = diff*0.9
-
-    #     mesh_classes = mesh_preds.argmax(axis=1)
-    #     mesh_max_class = max(mesh_classes)
-    #     color = self.cmap(mesh_classes / mesh_max_class)
-
-    #     diff = diff.reshape(-1, 1)
-
-    #     color = color[:, 0:3]
-    #     color = diff * 0.5 * color + (1 - diff) * np.ones(color.shape, dtype=np.uint8)
-    #     decision_view = color.reshape(resolution, resolution, 3)
-    #     grid_view = grid.reshape(resolution, resolution, 2)
-    #     return grid_view, decision_view
-    
     def get_epoch_decision_view(self, epoch, resolution):
         '''
         get background classifier view
@@ -182,12 +131,10 @@ class visualizer(VisualizerAbstractClass):
 
         # map gridmpoint to images
         grid_samples = self.projector.batch_inverse(epoch, grid)
-        #### in ref ' space
         np_grid_samples = np.asarray(grid_samples)
         # print("666",type(np_grid_samples),type(self.R_T))
-        new_grid = self.autoencoder.decoder(torch.Tensor(np_grid_samples))
-        # new_grid = np.dot(np.dot(np_grid_samples,self.R), self.RT_V)
-        new_grid = new_grid.detach().numpy()
+        new_grid = np.dot(np.dot(np_grid_samples,self.R), self.RT_V)
+
 
         mesh_preds = self.data_provider.get_pred(epoch, new_grid)
         mesh_preds = mesh_preds + 1e-8
@@ -353,58 +300,6 @@ class visualizer(VisualizerAbstractClass):
         self.sample_plots[3*self.class_num+1].set_data(prev_embedding.transpose())
         
         # plt.quiver(prev_embedding[:, 0], prev_embedding[:, 1], embedding[:, 0]-prev_embedding[:, 0],embedding[:, 1]-prev_embedding[:, 1], scale_units='xy', angles='xy', scale=1)  
-        plt.savefig(path)
-
-    def _init_plot_for_trajectory(self, classnum, only_img=False):
-        '''
-        Initialises matplotlib artists and plots. from DeepView and DVI
-        '''
-        plt.ion()
-        self.fig, self.ax = plt.subplots(1, 1, figsize=(8, 8))
-
-        self.ax.set_axis_off()
-
-        self.cls_plot = self.ax.imshow(np.zeros([5, 5, 3]),
-            interpolation='gaussian', zorder=0, vmin=0, vmax=1)
-
-        self.sample_plots = []
-        # labels = prediction
-
-        color = self.cmap(classnum-1)
-        plot = self.ax.plot([], [], 'o', label=classnum, ms=5,color=color, zorder=2, picker=mpl.rcParams['lines.markersize'])
-        self.sample_plots.append(plot[0])
-        self.disable_synth = False
-
-    def draw_trajectory(self, epoch, xs, ys, label, xy_limit=None, path="vis"):
-        '''
-        Shows the current plot with given data
-        '''
-        self._init_plot_for_trajectory(label, only_img=True)
-
-        if xy_limit is None:
-            x_min, y_min, x_max, y_max = self.get_epoch_plot_measures(epoch)
-        else:
-            x_min, y_min, x_max, y_max = xy_limit
-
-        _, decision_view = self.get_epoch_decision_view(epoch, self.resolution)
-        self.cls_plot.set_data(decision_view)
-        self.cls_plot.set_extent((x_min, x_max, y_max, y_min))
-        self.ax.set_xlim((x_min, x_max))
-        self.ax.set_ylim((y_min, y_max))
-
-        
-
-        self.sample_plots[-1].set_data(np.vstack((xs,ys)))
-
-        # set data point
-        u = xs[1:] - xs[:-1]
-        v = ys[1:] - ys[:-1]
-
-        x = xs[:len(u)] # 使得维数和u,v一致
-        y = ys[:len(v)]
-
-        # plt.quiver(prev_embedding[:, 0], prev_embedding[:, 1], embedding[:, 0]-prev_embedding[:, 0],embedding[:, 1]-prev_embedding[:, 1], scale_units='xy', angles='xy', scale=1, color='black')  
-        plt.quiver(x,y,u,v, angles='xy', scale_units='xy', width=0.003, scale=1, color='black')
         plt.savefig(path)
     
     def get_background(self, epoch, resolution):

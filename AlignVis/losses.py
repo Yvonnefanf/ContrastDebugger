@@ -169,3 +169,7 @@ def compute_neighborhood_similarity(neigh1, neigh2):
     # Compute similarity between neighborhoods
     sim = torch.mean((neigh1.unsqueeze(2) == neigh2.unsqueeze(1)).float(), dim=2)
     return sim
+
+
+
+

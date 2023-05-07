@@ -296,7 +296,13 @@ class Evaluator(EvaluatorAbstractClass):
         return val_same, val_diff
     
     def eval_move_direction_preserving(self,autoencoder,mes_val_for_diff,mes_val_for_same ):
-
+        """
+            Cluster all data and compute the centroid for each cluster. Evaluate the distance between each sample 
+            pair and each cluster's centroid.We assess the similarity using the mean absolute error (MAE). If the 
+            MAE > m, we consider the sample pair to be different. We then evaluate their differing direction (closer 
+            to a distinct cluster), aiming to faithfully represent this direction in a lower-dimensional space.
+        """
+        ####### get top2 high top3 low
         tar_h, ref_h, long_, short_ = self.get_high_dimension_top(autoencoder, mes_val_for_diff,mes_val_for_same)
         tar_l, ref_l = self.get_low_dimension_top(autoencoder,n_clusters=10)
         
@@ -334,10 +340,7 @@ class Evaluator(EvaluatorAbstractClass):
 
     def get_high_dimension_top(self, autoencoder, mes_val_for_diff,mes_val_for_same):
         """
-            Cluster all data and compute the centroid for each cluster. Evaluate the distance between each sample 
-            pair and each cluster's centroid.We assess the similarity using the mean absolute error (MAE). If the 
-            MAE > m, we consider the sample pair to be different. We then evaluate their differing direction (closer 
-            to a distinct cluster), aiming to faithfully represent this direction in a lower-dimensional space.
+            Obtain the top 2 nearest clusters for each sample in the high-dimensional space.
         """
         tar_pred_softmax = self.tar_provider.get_pred(self.TAR_EPOCH, self.tar_provider.train_representation(self.TAR_EPOCH))
         ref_pred_softmax = self.ref_provider.get_pred(self.REF_EPOCH, self.ref_provider.train_representation(self.REF_EPOCH))
@@ -363,6 +366,9 @@ class Evaluator(EvaluatorAbstractClass):
         return tar_top_classes, ref_top_classes,longDistanceMove,shortDistanceMove
     
     def get_low_dimension_top(self, autoencoder,n_clusters=10):
+        """
+            Obtain the top 3 nearest clusters for each sample in the low-dimensional space.
+        """
 
         ref_pred = self.ref_provider.get_pred(self.REF_EPOCH, self.ref_provider.train_representation(self.REF_EPOCH)).argmax(axis=1)
         tar_pred = self.tar_provider.get_pred(self.TAR_EPOCH, self.tar_provider.train_representation(self.TAR_EPOCH)).argmax(axis=1)
@@ -424,6 +430,63 @@ class Evaluator(EvaluatorAbstractClass):
         ref_top_classess = np.vectorize(ref_label_dict.get)(ref_top_clusters)
 
         return tar_top_classess,ref_top_classess
+    
+    ############## boundary sample preserving ###########################
+    def eval_boundary_align_sensitivity(self, autoencoder, tar_b_features, ref_b_features):
+        ############## init ###################
+        #init target
+        tar_b_pred = self.tar_provider.get_pred(self.TAR_EPOCH, tar_b_features)
+        tar_b_pred = tar_b_pred + 1e-8
+        tar_sort_preds = np.sort(tar_b_pred, axis=1)
+        tar_diff = (tar_sort_preds[:, -1] - tar_sort_preds[:, -2]) / (tar_sort_preds[:, -1] - tar_sort_preds[:, 0])
+        tar_border = np.zeros(len(tar_diff), dtype=np.uint8) + 0.05
+        tar_border[tar_diff < 0.15] = 1
+
+        #init reference
+        ref_b_pred = self.ref_provider.get_pred(self.REF_EPOCH, ref_b_features)
+        ref_b_pred = ref_b_pred + 1e-8
+        ref_sort_preds = np.sort(ref_b_pred, axis=1)
+        ref_diff = (ref_sort_preds[:, -1] - ref_sort_preds[:, -2]) / (ref_sort_preds[:, -1] - ref_sort_preds[:, 0])
+        ref_border = np.zeros(len(ref_diff), dtype=np.uint8) + 0.05
+        ref_border[ref_diff < 0.15] = 1
+        
+        ##### get all boundary list
+        all_boundary_list = []
+        for i in range(len(ref_border)):
+            if ref_border[i] == 1 and tar_border[i] == 1:
+                all_boundary_list.append(i)
+        
+        #### get ref low dimensional border
+        ref_b_embedding = self.ref_projector.batch_project(self.REF_EPOCH, ref_b_features)
+        ref_b_inv = self.ref_projector.batch_inverse(self.REF_EPOCH,ref_b_embedding)
+        ref_b_pred_l = self.ref_provider.get_pred(self.REF_EPOCH, ref_b_inv)
+        ref_b_pred_l = ref_b_pred_l  + 1e-8
+        ref_sort_preds_l  = np.sort(ref_b_pred_l , axis=1)
+        ref_diff_l  = (ref_sort_preds_l[:, -1] - ref_sort_preds_l[:, -2]) / (ref_sort_preds_l[:, -1] - ref_sort_preds_l[:, 0])
+        ref_border_l = np.zeros(len(ref_diff_l), dtype=np.uint8) + 0.05
+        ref_border_l[ref_diff_l < 0.15] = 1
+        
+        #### get target low dimensional border
+        tar_b_embedding = self.ref_projector.batch_project(self.REF_EPOCH, autoencoder.encoder(torch.Tensor(ref_b_features)).detach().numpy())
+        tar_b_inv = self.ref_projector.batch_inverse(self.REF_EPOCH,tar_b_embedding)
+        tar_b_inv = autoencoder.decoder(torch.Tensor(tar_b_inv)).detach().numpy()
+        tar_b_pred_l = self.tar_provider.get_pred(self.REF_EPOCH, tar_b_inv)
+        tar_b_pred_l = tar_b_pred_l  + 1e-8
+        tar_sort_preds_l  = np.sort(tar_b_pred_l , axis=1)
+        tar_diff_l  = (tar_sort_preds_l[:, -1] - tar_sort_preds_l[:, -2]) / (tar_sort_preds_l[:, -1] - tar_sort_preds_l[:, 0])
+        tar_border_l = np.zeros(len(tar_diff_l), dtype=np.uint8) + 0.05
+        tar_border_l[tar_diff_l < 0.15] = 1
+
+        all_boundary_list_l = []
+        for i in range(len(ref_border)):
+            if ref_border_l[i] == 1 and tar_border_l[i] == 1:
+                all_boundary_list_l.append(i)
+
+        print("boundary sample preserving{}/{}".format(len(all_boundary_list_l),len(all_boundary_list)))
+        
+        return
+
+
 
 
 

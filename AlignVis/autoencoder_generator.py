@@ -200,7 +200,10 @@ class AutoEncoderGenerator(AutoEncoderGeneratorAbstractClass):
                             'optimizer_state_dict': optimizer.state_dict(),
                             'loss': loss}, saved_path)
         return autoencoder
+    
+    def encoder_active_learning():
 
+        return
 
 
 

@@ -4,7 +4,8 @@ import numpy as np
 import os
 import json
 from singleVis.utils import *
-
+import torch
+import torch.nn as nn
 class AlignmentBoundaryGeneratorAbstractClass(ABC):
     @abstractmethod
     def __init__(self, REF_PATH, REF_CONFIG_PATH, TAR_PATH, TAR_CONFIG_PATH,  REF_EPOCH, TAR_EPOCH, DEVICE, * args, **kawargs):
@@ -55,4 +56,24 @@ class AlignmentBoundaryGenerator(AlignmentBoundaryGeneratorAbstractClass):
         border_points, tar_border,_, _ = get_aligned_border_points(model=self.ref_model, input_x=training_data, tar_model = self.tar_model, tar_input_x = tar_training_data, device=DEVICE, l_bound=l_bound, num_adv_eg=num_adv_eg, lambd=0.05, verbose=0)
 
         return border_points, tar_border
+    
+    def get_boundary_features(self, DEVICE, num_adv_eg=5000):
+        ref_boundary,tar_boundary = self.get_boundary_point(DEVICE,num_adv_eg=num_adv_eg)
+
+        ###### get border sample features
+
+        ref_feature_model = self.ref_model.to(DEVICE)
+        ref_feature_model = nn.Sequential(*list(ref_feature_model.children())[:-1])
+        with torch.no_grad():
+            ref_features = ref_feature_model(ref_boundary)
+            ref_features = ref_features.view(ref_boundary.shape[0], -1).cpu().numpy()
+
+        ###### get border sample features
+        tar_feature_model = self.tar_model.to(DEVICE)
+        tar_feature_model = nn.Sequential(*list(tar_feature_model.children())[:-1])
+        with torch.no_grad():
+            tar_features = tar_feature_model(tar_boundary)
+            tar_features = tar_features.view(tar_boundary.shape[0], -1).cpu().numpy()
+
+        return ref_features,tar_features
 

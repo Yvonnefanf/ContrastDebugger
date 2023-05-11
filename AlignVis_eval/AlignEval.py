@@ -478,13 +478,31 @@ class Evaluator(EvaluatorAbstractClass):
         tar_border_l[tar_diff_l < 0.15] = 1
 
         all_boundary_list_l = []
+        sim = []
+        sim_l = []
+        target_preserving = []
+        ref_preserving = []
         for i in range(len(ref_border)):
             if ref_border_l[i] == 1 and tar_border_l[i] == 1:
                 all_boundary_list_l.append(i)
+            if ref_border[i] == tar_border[i]:
+                sim.append(i)
+            if ref_border_l[i] == tar_border_l[i]:
+                sim_l.append(i)
+            if tar_border_l[i] == tar_border[i]:
+                 target_preserving.append(i)
+            if ref_border_l[i] == ref_border[i]:
+                 ref_preserving.append(i)
+
+
+        print("boundary sample preserving{}/{}".format(len(all_boundary_list_l),len(all_boundary_list)))
+        print("boundary sample preserving{}/{}".format(len(sim_l),len(sim)))
+        print("target keep boundary and non boundary{}/{}".format(len(target_preserving),len(tar_b_features)))
+        print("target keep boundary and non boundary{}/{}".format(len(ref_preserving),len(ref_b_features)))
+        
 
         print("boundary sample preserving{}/{}".format(len(all_boundary_list_l),len(all_boundary_list)))
         
-        return
 
 
 

@@ -211,7 +211,7 @@ class AutoEncoderGenerator(AutoEncoderGeneratorAbstractClass):
         return autoencoder
     
 
-    def encoder_trainer_with_pre_trained(self, saved_path,  autoencoder_path, label_flip_rate=0.01,batch_size=500, num_epochs = 20,learning_rate = 1e-5):
+    def encoder_trainer_with_pre_trained(self, saved_path,  autoencoder_path, label_flip_rate=0.01, contrastive=0.001,pred_loss_rate=0.01,batch_size=500, num_epochs = 20,learning_rate = 1e-5):
 
         ##### load trained autoencoder
         autoencoder = SimpleAutoencoder(512,512)
@@ -264,7 +264,7 @@ class AutoEncoderGenerator(AutoEncoderGeneratorAbstractClass):
 
                 # loss = loss_f_decoder + loss_f_encoder + 0.01 * pred_loss + 0.1 * flip_loss
         
-                loss = loss_f_decoder + loss_f_encoder + label_flip_rate * flip_loss + 0.01 * loss_contrastive + pred_loss + cka_loss
+                loss = loss_f_decoder + loss_f_encoder + label_flip_rate * flip_loss + contrastive * loss_contrastive + pred_loss_rate * pred_loss + cka_loss
                 # Backward pass
                 loss.backward()
 

@@ -94,7 +94,8 @@ class visualizer(VisualizerAbstractClass):
     
     def get_epoch_plot_measures(self, epoch):
         """get plot measure for visualization"""
-        data = self.train_representation
+        # data = self.train_representation
+        data = self.data_provider.train_representation(epoch)
         embedded = self.projector.batch_project(epoch, data)
 
         ebd_min = np.min(embedded, axis=0)
